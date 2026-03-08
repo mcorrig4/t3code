@@ -1,5 +1,6 @@
 import {
   ChevronRightIcon,
+  SettingsIcon,
   FolderIcon,
   GitPullRequestIcon,
   RocketIcon,
@@ -59,6 +60,7 @@ import {
   SidebarTrigger,
 } from "./ui/sidebar";
 import { formatWorktreePathForDisplay, getOrphanedWorktreePathForThread } from "../worktreeCleanup";
+import { resolveHttpOriginFromWebSocketUrl } from "../wsUrl";
 import { isNonEmpty as isNonEmptyString } from "effect/String";
 
 const EMPTY_KEYBINDINGS: ResolvedKeybindingsConfig = [];
@@ -220,19 +222,7 @@ function T3Wordmark() {
 function getServerHttpOrigin(): string {
   const bridgeUrl = window.desktopBridge?.getWsUrl();
   const envUrl = import.meta.env.VITE_WS_URL as string | undefined;
-  const wsUrl =
-    bridgeUrl && bridgeUrl.length > 0
-      ? bridgeUrl
-      : envUrl && envUrl.length > 0
-        ? envUrl
-        : `ws://${window.location.hostname}:${window.location.port}`;
-  // Parse to extract just the origin, dropping path/query (e.g. ?token=…)
-  const httpUrl = wsUrl.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
-  try {
-    return new URL(httpUrl).origin;
-  } catch {
-    return httpUrl;
-  }
+  return resolveHttpOriginFromWebSocketUrl({ bridgeUrl, envUrl });
 }
 
 const serverHttpOrigin = getServerHttpOrigin();
@@ -1342,13 +1332,26 @@ export default function Sidebar() {
             </div>
           </>
         ) : (
-          <button
-            type="button"
-            className="flex w-full items-center justify-center gap-1 rounded-md border border-dashed border-border py-2 text-xs text-muted-foreground/70 transition-colors duration-150 hover:border-ring hover:text-muted-foreground"
-            onClick={() => setAddingProject(true)}
-          >
-            + Add project
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="h-9 flex-1 rounded-md border border-dashed border-border px-3 text-xs text-muted-foreground/70 transition-colors duration-150 hover:border-ring hover:text-muted-foreground"
+              onClick={() => setAddingProject(true)}
+            >
+              + Add project
+            </button>
+            <button
+              type="button"
+              aria-label="Open settings"
+              title="Settings"
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors duration-150 hover:bg-secondary hover:text-foreground"
+              onClick={() => {
+                void navigate({ to: "/settings" });
+              }}
+            >
+              <SettingsIcon className="size-3.5" />
+            </button>
+          </div>
         )}
       </SidebarFooter>
     </>
