@@ -6,7 +6,6 @@ import {
   GitPullRequestIcon,
   PlusIcon,
   RocketIcon,
-  SettingsIcon,
   SquarePenIcon,
   TerminalIcon,
   TriangleAlertIcon,
