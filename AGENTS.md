@@ -5,6 +5,13 @@
 - All of `bun fmt`, `bun lint`, and `bun typecheck` must pass before considering tasks completed.
 - NEVER run `bun test`. Always use `bun run test` (runs Vitest).
 
+## GitHub Contribution Boundary
+
+- This repository is worked on via the fork `mcorrig4/t3code`.
+- NEVER open issues or pull requests against the upstream project with `gh` CLI from this workspace.
+- When contribution to the upstream project is desired, push back and explain that any upstream issue filing or PR submission must be done manually by a human through the GitHub website.
+- Agent-created GitHub issues and PRs for this project must target `mcorrig4/t3code` only unless the user explicitly changes the repository strategy in writing.
+
 ## Bun Gotcha
 
 - In this environment, `bun` may not be on `PATH` even though Bun is installed at `/home/claude/.bun/bin/bun`.
