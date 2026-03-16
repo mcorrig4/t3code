@@ -493,6 +493,42 @@ routing.layer("ProviderServiceLive routing", (it) => {
     }),
   );
 
+  it.effect("fails fast for user input replies after the provider session is gone", () =>
+    Effect.gen(function* () {
+      const provider = yield* ProviderService;
+
+      const session = yield* provider.startSession(asThreadId("thread-user-input-stale"), {
+        provider: "codex",
+        threadId: asThreadId("thread-user-input-stale"),
+        runtimeMode: "full-access",
+      });
+      yield* routing.codex.stopSession(session.threadId);
+      routing.codex.startSession.mockClear();
+      routing.codex.respondToUserInput.mockClear();
+
+      const response = yield* Effect.result(
+        provider.respondToUserInput({
+          threadId: session.threadId,
+          requestId: asRequestId("req-user-input-stale"),
+          answers: {
+            sandbox_mode: "workspace-write",
+          },
+        }),
+      );
+
+      assertFailure(
+        response,
+        new ProviderValidationError({
+          operation: "ProviderService.respondToUserInput",
+          issue:
+            "This question belongs to a previous provider session and can no longer be answered. Ask the agent to re-ask it.",
+        }),
+      );
+      assert.equal(routing.codex.startSession.mock.calls.length, 0);
+      assert.equal(routing.codex.respondToUserInput.mock.calls.length, 0);
+    }),
+  );
+
   it.effect("recovers stale persisted sessions for rollback by resuming thread identity", () =>
     Effect.gen(function* () {
       const provider = yield* ProviderService;

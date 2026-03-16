@@ -156,6 +156,18 @@ function requestKindFromRequestType(requestType: unknown): PendingApproval["requ
   }
 }
 
+function isStalePendingUserInputDetail(detail: string | undefined): boolean {
+  if (!detail) {
+    return false;
+  }
+  const normalized = detail.toLowerCase();
+  return (
+    normalized.includes("unknown pending user input request") ||
+    normalized.includes("belongs to a previous provider session") ||
+    normalized.includes("expired after the session restarted")
+  );
+}
+
 export function derivePendingApprovals(
   activities: ReadonlyArray<OrchestrationThreadActivity>,
 ): PendingApproval[] {
@@ -291,6 +303,16 @@ export function derivePendingUserInputs(
     }
 
     if (activity.kind === "user-input.resolved" && requestId) {
+      openByRequestId.delete(requestId);
+      continue;
+    }
+
+    const detail = payload && typeof payload.detail === "string" ? payload.detail : undefined;
+    if (
+      activity.kind === "provider.user-input.respond.failed" &&
+      requestId &&
+      isStalePendingUserInputDetail(detail)
+    ) {
       openByRequestId.delete(requestId);
     }
   }

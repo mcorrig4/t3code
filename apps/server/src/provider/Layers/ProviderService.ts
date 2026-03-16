@@ -397,8 +397,14 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
         const routed = yield* resolveRoutableSession({
           threadId: input.threadId,
           operation: "ProviderService.respondToUserInput",
-          allowRecovery: true,
+          allowRecovery: false,
         });
+        if (!routed.isActive) {
+          return yield* toValidationError(
+            "ProviderService.respondToUserInput",
+            "This question belongs to a previous provider session and can no longer be answered. Ask the agent to re-ask it.",
+          );
+        }
         yield* routed.adapter.respondToUserInput(routed.threadId, input.requestId, input.answers);
       });
 
