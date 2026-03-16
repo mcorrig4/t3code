@@ -61,17 +61,16 @@ const runCli = (
   env: Record<string, string> = { T3CODE_NO_BROWSER: "true" },
 ) => {
   const uniqueStateDir = `/tmp/t3-cli-state-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const envLayer = ConfigProvider.layer(
+    ConfigProvider.fromEnv({
+      env: {
+        T3CODE_STATE_DIR: uniqueStateDir,
+        ...env,
+      },
+    }),
+  );
   return Command.runWith(t3Cli, { version: "0.0.0-test" })(args).pipe(
-    Effect.provide(
-      ConfigProvider.layer(
-        ConfigProvider.fromEnv({
-          env: {
-            T3CODE_STATE_DIR: uniqueStateDir,
-            ...env,
-          },
-        }),
-      ),
-    ),
+    Effect.provide(Layer.mergeAll(testLayer, envLayer)),
   );
 };
 

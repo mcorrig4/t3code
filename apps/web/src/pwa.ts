@@ -1,7 +1,11 @@
 import { isElectron } from "./env";
+import {
+  PUSH_SERVICE_WORKER_PATH as SERVICE_WORKER_PATH,
+  PUSH_SERVICE_WORKER_SCOPE as SERVICE_WORKER_SCOPE,
+  registerPushServiceWorker,
+} from "./notifications/registerServiceWorker";
 
-export const SERVICE_WORKER_PATH = "/sw.js";
-export const SERVICE_WORKER_SCOPE = "/";
+export { SERVICE_WORKER_PATH, SERVICE_WORKER_SCOPE };
 
 export function shouldRegisterServiceWorker(input: {
   readonly isElectron: boolean;
@@ -27,9 +31,7 @@ export async function registerServiceWorker(): Promise<void> {
   }
 
   try {
-    await navigator.serviceWorker.register(SERVICE_WORKER_PATH, {
-      scope: SERVICE_WORKER_SCOPE,
-    });
+    await registerPushServiceWorker();
   } catch (error) {
     if (import.meta.env.DEV) {
       console.warn("Service worker registration failed", error);

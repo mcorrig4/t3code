@@ -1301,10 +1301,15 @@ export default function Sidebar() {
                   return (
                     <SortableProjectItem key={project.id} projectId={project.id}>
                       {(dragHandleProps) => (
-                        <Collapsible className="group/collapsible" open={project.expanded}>
+                        <Collapsible
+                          className="group/collapsible"
+                          data-project-group
+                          open={project.expanded}
+                        >
                           <div className="group/project-header relative">
                             <SidebarMenuButton
                               size="sm"
+                              data-project-row
                               className="gap-2 px-2 py-1.5 text-left cursor-grab active:cursor-grabbing hover:bg-accent group-hover/project-header:bg-accent group-hover/project-header:text-sidebar-accent-foreground"
                               {...dragHandleProps.attributes}
                               {...dragHandleProps.listeners}
@@ -1365,7 +1370,10 @@ export default function Sidebar() {
                           </div>
 
                           <CollapsibleContent keepMounted>
-                            <SidebarMenuSub className="mx-1 my-0 w-full translate-x-0 gap-0.5 px-1.5 py-0">
+                            <SidebarMenuSub
+                              className="mx-1 my-0 w-full translate-x-0 gap-0.5 px-1.5 py-0"
+                              data-project-threads
+                            >
                               {visibleThreads.map((thread) => {
                                 const isActive = routeThreadId === thread.id;
                                 const isSelected = selectedThreadIds.has(thread.id);
