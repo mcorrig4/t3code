@@ -1,4 +1,4 @@
-import { ThreadId } from "@t3tools/contracts";
+import { ThreadId, type OrchestrationThreadActivity } from "@t3tools/contracts";
 import {
   Outlet,
   createRootRouteWithContext,
@@ -13,6 +13,8 @@ import { Throttler } from "@tanstack/react-pacer";
 import { APP_DISPLAY_NAME } from "../branding";
 import { Button } from "../components/ui/button";
 import { AnchoredToastProvider, ToastProvider, toastManager } from "../components/ui/toast";
+import { UserInputDebugPanel } from "../components/debug/UserInputDebugPanel";
+import { logUserInputDebug } from "../debug/userInputDebug";
 import { resolveAndPersistPreferredEditor } from "../editorPreferences";
 import { serverConfigQueryOptions, serverQueryKeys } from "../lib/serverReactQuery";
 import { readNativeApi } from "../nativeApi";
@@ -53,6 +55,7 @@ function RootRouteView() {
       <AnchoredToastProvider>
         <EventRouter />
         <DesktopProjectBootstrap />
+        <UserInputDebugPanel />
         <Outlet />
       </AnchoredToastProvider>
     </ToastProvider>
@@ -207,6 +210,41 @@ function EventRouter() {
     );
 
     const unsubDomainEvent = api.orchestration.onDomainEvent((event) => {
+      if (event.type === "thread.user-input-response-requested") {
+        logUserInputDebug({
+          level: "info",
+          stage: "domain-event",
+          message: "Observed thread.user-input-response-requested",
+          threadId: event.payload.threadId,
+          requestId: event.payload.requestId,
+          ...withDebugDetail(stringifyDebugDetail(event.payload.answers)),
+        });
+      }
+      if (event.type === "thread.activity-appended") {
+        const activity = event.payload.activity;
+        if (isInterestingUserInputActivity(activity)) {
+          logUserInputDebug({
+            level: activity.kind === "provider.user-input.respond.failed" ? "error" : "success",
+            stage: "domain-activity",
+            message: `Observed ${activity.kind}`,
+            threadId: event.payload.threadId,
+            requestId: requestIdFromActivity(activity),
+            ...withDebugDetail(
+              stringifyDebugDetail({
+                summary: activity.summary,
+                payload: activity.payload,
+              }),
+            ),
+          });
+        }
+        if (activity.kind === "provider.user-input.respond.failed") {
+          toastManager.add({
+            type: "error",
+            title: "Question expired",
+            description: describePendingUserInputFailure(activity),
+          });
+        }
+      }
       if (event.sequence <= latestSequence) {
         return;
       }
@@ -319,6 +357,61 @@ function EventRouter() {
   ]);
 
   return null;
+}
+
+function isInterestingUserInputActivity(activity: OrchestrationThreadActivity): boolean {
+  return (
+    activity.kind === "user-input.requested" ||
+    activity.kind === "user-input.resolved" ||
+    activity.kind === "provider.user-input.respond.failed"
+  );
+}
+
+function requestIdFromActivity(activity: OrchestrationThreadActivity): string | null {
+  const payload = activity.payload;
+  if (!payload || typeof payload !== "object") {
+    return null;
+  }
+  const requestId = (payload as Record<string, unknown>).requestId;
+  return typeof requestId === "string" ? requestId : null;
+}
+
+function stringifyDebugDetail(value: unknown): string | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function withDebugDetail(detail: string | undefined): { detail: string } | undefined {
+  return typeof detail === "string" ? { detail } : undefined;
+}
+
+function describePendingUserInputFailure(activity: OrchestrationThreadActivity): string {
+  const payload =
+    activity.payload && typeof activity.payload === "object"
+      ? (activity.payload as Record<string, unknown>)
+      : null;
+  const detail = typeof payload?.detail === "string" ? payload.detail : null;
+  if (!detail) {
+    return "This question could not be answered.";
+  }
+  const normalized = detail.toLowerCase();
+  if (
+    normalized.includes("unknown pending user input request") ||
+    normalized.includes("belongs to a previous provider session") ||
+    normalized.includes("expired after the session restarted")
+  ) {
+    return (
+      "This question came from an earlier session and can no longer be answered. " +
+      "Ask the agent to re-ask it."
+    );
+  }
+  return detail;
 }
 
 function DesktopProjectBootstrap() {
