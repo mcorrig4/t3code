@@ -36,6 +36,7 @@ import { computeMessageDurationStart, normalizeCompactToolLabel } from "./Messag
 import { cn } from "~/lib/utils";
 import { type TimestampFormat } from "../../appSettings";
 import { formatTimestamp } from "../../timestampFormat";
+import { AssistantMessageTtsButton } from "../../features/tts/AssistantMessageTtsButton";
 
 const MAX_VISIBLE_WORK_LOG_ENTRIES = 6;
 const ALWAYS_UNVIRTUALIZED_TAIL_ROWS = 8;
@@ -429,6 +430,11 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                   cwd={markdownCwd}
                   isStreaming={Boolean(row.message.streaming)}
                 />
+                {!row.message.streaming && row.message.text.trim().length > 0 ? (
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <AssistantMessageTtsButton messageId={row.message.id} text={row.message.text} />
+                  </div>
+                ) : null}
                 {(() => {
                   const turnSummary = turnDiffSummaryByAssistantMessageId.get(row.message.id);
                   if (!turnSummary) return null;
