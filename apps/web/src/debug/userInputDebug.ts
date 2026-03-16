@@ -37,6 +37,19 @@ function readSearchParamEnabled(): boolean {
   return value === "1" || value === "true" || value === "on";
 }
 
+function canPersistDebugState(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+  const hostname = window.location.hostname.toLowerCase();
+  return (
+    hostname === "t3-dev.claude.do" ||
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1"
+  );
+}
+
 function readPersistedEnabled(): boolean {
   if (typeof window === "undefined") {
     return false;
@@ -95,6 +108,10 @@ function persistDebugState(input: {
     return;
   }
   try {
+    if (!canPersistDebugState()) {
+      window.localStorage.removeItem(USER_INPUT_DEBUG_STORAGE_KEY);
+      return;
+    }
     if (input.enabled) {
       window.localStorage.setItem(
         USER_INPUT_DEBUG_STORAGE_KEY,
@@ -113,7 +130,7 @@ function persistDebugState(input: {
 }
 
 function resolveInitialEnabled(): boolean {
-  const enabled = readSearchParamEnabled() || readPersistedEnabled();
+  const enabled = readSearchParamEnabled() || (canPersistDebugState() && readPersistedEnabled());
   if (enabled) {
     const layout = readPersistedLayout();
     persistDebugState({
