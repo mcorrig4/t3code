@@ -73,6 +73,13 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
   const selectOptionAndAutoAdvance = useCallback(
     (questionId: string, optionLabel: string) => {
       onSelectOption(questionId, optionLabel);
+      if (progress.isLastQuestion) {
+        if (autoAdvanceTimerRef.current !== null) {
+          window.clearTimeout(autoAdvanceTimerRef.current);
+          autoAdvanceTimerRef.current = null;
+        }
+        return;
+      }
       if (autoAdvanceTimerRef.current !== null) {
         window.clearTimeout(autoAdvanceTimerRef.current);
       }
@@ -81,7 +88,7 @@ const ComposerPendingUserInputCard = memo(function ComposerPendingUserInputCard(
         onAdvance();
       }, 200);
     },
-    [onSelectOption, onAdvance],
+    [onSelectOption, onAdvance, progress.isLastQuestion],
   );
 
   // Keyboard shortcut: number keys 1-9 select corresponding option and auto-advance.

@@ -713,6 +713,117 @@ describe("ProviderCommandReactor", () => {
     });
   });
 
+  it("surfaces stale provider user-input failures with a clear recovery message", async () => {
+    const harness = await createHarness();
+    const now = new Date().toISOString();
+    harness.respondToUserInput.mockImplementation(() =>
+      Effect.fail(
+        new ProviderAdapterRequestError({
+          provider: "codex",
+          method: "item/tool/requestUserInput",
+          detail: "Unknown pending user input request: user-input-request-1",
+        }),
+      ),
+    );
+
+    await Effect.runPromise(
+      harness.engine.dispatch({
+        type: "thread.session.set",
+        commandId: CommandId.makeUnsafe("cmd-session-set-for-user-input-error"),
+        threadId: ThreadId.makeUnsafe("thread-1"),
+        session: {
+          threadId: ThreadId.makeUnsafe("thread-1"),
+          status: "running",
+          providerName: "codex",
+          runtimeMode: "approval-required",
+          activeTurnId: null,
+          lastError: null,
+          updatedAt: now,
+        },
+        createdAt: now,
+      }),
+    );
+
+    await Effect.runPromise(
+      harness.engine.dispatch({
+        type: "thread.activity.append",
+        commandId: CommandId.makeUnsafe("cmd-user-input-requested"),
+        threadId: ThreadId.makeUnsafe("thread-1"),
+        activity: {
+          id: EventId.makeUnsafe("activity-user-input-requested"),
+          tone: "info",
+          kind: "user-input.requested",
+          summary: "User input requested",
+          payload: {
+            requestId: "user-input-request-1",
+            questions: [
+              {
+                id: "sandbox_mode",
+                header: "Sandbox",
+                question: "Which mode should be used?",
+                options: [
+                  {
+                    label: "workspace-write",
+                    description: "Allow workspace writes only",
+                  },
+                ],
+              },
+            ],
+          },
+          turnId: null,
+          createdAt: now,
+        },
+        createdAt: now,
+      }),
+    );
+
+    await Effect.runPromise(
+      harness.engine.dispatch({
+        type: "thread.user-input.respond",
+        commandId: CommandId.makeUnsafe("cmd-user-input-respond-stale"),
+        threadId: ThreadId.makeUnsafe("thread-1"),
+        requestId: asApprovalRequestId("user-input-request-1"),
+        answers: {
+          sandbox_mode: "workspace-write",
+        },
+        createdAt: now,
+      }),
+    );
+
+    await waitFor(async () => {
+      const readModel = await Effect.runPromise(harness.engine.getReadModel());
+      const thread = readModel.threads.find(
+        (entry) => entry.id === ThreadId.makeUnsafe("thread-1"),
+      );
+      if (!thread) return false;
+      return thread.activities.some(
+        (activity) => activity.kind === "provider.user-input.respond.failed",
+      );
+    });
+
+    const readModel = await Effect.runPromise(harness.engine.getReadModel());
+    const thread = readModel.threads.find((entry) => entry.id === ThreadId.makeUnsafe("thread-1"));
+    expect(thread).toBeDefined();
+
+    const failureActivity = thread?.activities.find(
+      (activity) => activity.kind === "provider.user-input.respond.failed",
+    );
+    expect(failureActivity?.payload).toMatchObject({
+      requestId: "user-input-request-1",
+      detail:
+        "This question came from an earlier provider session and expired after the session restarted. Please ask the agent to re-ask the question.",
+    });
+
+    const resolvedActivity = thread?.activities.find(
+      (activity) =>
+        activity.kind === "user-input.resolved" &&
+        typeof activity.payload === "object" &&
+        activity.payload !== null &&
+        (activity.payload as Record<string, unknown>).requestId === "user-input-request-1",
+    );
+    expect(resolvedActivity).toBeUndefined();
+  });
+
   it("surfaces stale provider approval request failures without faking approval resolution", async () => {
     const harness = await createHarness();
     const now = new Date().toISOString();

@@ -5,6 +5,14 @@
 - All of `bun fmt`, `bun lint`, and `bun typecheck` must pass before considering tasks completed.
 - NEVER run `bun test`. Always use `bun run test` (runs Vitest).
 
+## Bun Gotcha
+
+- In this environment, `bun` may not be on `PATH` even though Bun is installed at `/home/claude/.bun/bin/bun`.
+- If plain `bun ...` fails with `bun: command not found`, use the absolute binary path instead.
+- For `bun typecheck`, also prepend Bun to `PATH` so Turbo can find the package manager binary:
+  `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
+- `bun fmt` and `bun lint` can be run directly with `/home/claude/.bun/bin/bun fmt` and `/home/claude/.bun/bin/bun lint`.
+
 ## Project Snapshot
 
 T3 Code is a minimal web GUI for using code agents like Codex and Claude Code (coming soon).
