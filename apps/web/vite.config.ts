@@ -2,6 +2,7 @@ import tailwindcss from "@tailwindcss/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
 import babel from "@rolldown/plugin-babel";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
+import type { HmrOptions } from "vite";
 import { defineConfig } from "vite";
 import pkg from "./package.json" with { type: "json" };
 
@@ -27,6 +28,16 @@ const buildSourcemap =
     : sourcemapEnv === "hidden"
       ? "hidden"
       : true;
+
+const hmrConfig: HmrOptions = {
+  // Keep defaults friendly for localhost, but allow a real public host when
+  // the dev UI is reverse-proxied through Caddy/Cloudflare.
+  protocol: hmrProtocol,
+  host: hmrHost,
+  ...(hmrPath ? { path: hmrPath } : {}),
+  ...(hmrClientPort !== undefined ? { clientPort: hmrClientPort } : {}),
+  ...(hmrPort !== undefined ? { port: hmrPort } : {}),
+};
 
 export default defineConfig({
   plugins: [
@@ -57,16 +68,8 @@ export default defineConfig({
     host: devHost,
     port,
     strictPort: true,
-    allowedHosts: allowedHosts.length > 0 ? allowedHosts : undefined,
-    hmr: {
-      // Keep defaults friendly for localhost, but allow a real public host when
-      // the dev UI is reverse-proxied through Caddy/Cloudflare.
-      protocol: hmrProtocol,
-      host: hmrHost,
-      path: hmrPath,
-      clientPort: hmrClientPort,
-      port: hmrPort,
-    },
+    ...(allowedHosts.length > 0 ? { allowedHosts } : {}),
+    hmr: hmrConfig,
   },
   build: {
     outDir: "dist",
