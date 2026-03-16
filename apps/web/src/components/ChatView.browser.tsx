@@ -21,6 +21,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { render } from "vitest-browser-react";
 
 import { useComposerDraftStore } from "../composerDraftStore";
+import { stopPlayback } from "../features/tts/tts";
 import { isMacPlatform } from "../lib/utils";
 import { getRouter } from "../router";
 import { useStore } from "../store";
@@ -91,6 +92,23 @@ interface MountedChatView {
   router: ReturnType<typeof getRouter>;
 }
 
+class MockSpeechSynthesisUtterance {
+  readonly text: string;
+  lang = "";
+  voice: SpeechSynthesisVoice | null = null;
+  onend: (() => void) | null = null;
+  onerror: ((event: { error?: string }) => void) | null = null;
+
+  constructor(text: string) {
+    this.text = text;
+  }
+}
+
+interface BrowserSpeechMockState {
+  readonly speakCalls: MockSpeechSynthesisUtterance[];
+  cancelCount: number;
+}
+
 function isoAt(offsetSeconds: number): string {
   return new Date(BASE_TIME_MS + offsetSeconds * 1_000).toISOString();
 }
@@ -147,6 +165,49 @@ function createAssistantMessage(options: { id: MessageId; text: string; offsetSe
     streaming: false,
     createdAt: isoAt(options.offsetSeconds),
     updatedAt: isoAt(options.offsetSeconds + 1),
+  };
+}
+
+function createSnapshotForAssistantTts(options: {
+  assistantMessages: ReadonlyArray<{
+    id: MessageId;
+    text: string;
+    streaming?: boolean;
+  }>;
+}): OrchestrationReadModel {
+  const baseSnapshot = createSnapshotForTargetUser({
+    targetMessageId: "msg-user-assistant-tts" as MessageId,
+    targetText: "assistant tts target",
+  });
+
+  return {
+    ...baseSnapshot,
+    threads: baseSnapshot.threads.map((thread) =>
+      thread.id === THREAD_ID
+        ? {
+            ...thread,
+            messages: options.assistantMessages.flatMap((assistantMessage, index) => {
+              const offsetSeconds = index * 4;
+              return [
+                createUserMessage({
+                  id: `msg-user-assistant-tts-${index}` as MessageId,
+                  text: `user message ${index + 1}`,
+                  offsetSeconds,
+                }),
+                {
+                  ...createAssistantMessage({
+                    id: assistantMessage.id,
+                    text: assistantMessage.text,
+                    offsetSeconds: offsetSeconds + 1,
+                  }),
+                  streaming: Boolean(assistantMessage.streaming),
+                  updatedAt: isoAt(offsetSeconds + 2),
+                },
+              ];
+            }),
+          }
+        : thread,
+    ),
   };
 }
 
@@ -543,6 +604,47 @@ async function waitForInteractionModeButton(
   );
 }
 
+async function waitForButtonByTitle(title: string): Promise<HTMLButtonElement> {
+  return waitForElement(
+    () =>
+      Array.from(document.querySelectorAll("button")).find(
+        (button) => button.title === title,
+      ) as HTMLButtonElement | null,
+    `Unable to find button titled "${title}".`,
+  );
+}
+
+function queryButtonByTitle(title: string): HTMLButtonElement | null {
+  return (
+    (Array.from(document.querySelectorAll("button")).find((button) => button.title === title) as
+      | HTMLButtonElement
+      | undefined) ?? null
+  );
+}
+
+function installSpeechSynthesisMock(): BrowserSpeechMockState {
+  const state: BrowserSpeechMockState = {
+    speakCalls: [],
+    cancelCount: 0,
+  };
+
+  vi.stubGlobal("speechSynthesis", {
+    cancel: vi.fn(() => {
+      state.cancelCount += 1;
+    }),
+    getVoices: vi.fn(() => [{ default: true, lang: "en-US" } as SpeechSynthesisVoice]),
+    speak: vi.fn((utterance: SpeechSynthesisUtterance) => {
+      state.speakCalls.push(utterance as unknown as MockSpeechSynthesisUtterance);
+    }),
+  } satisfies Partial<SpeechSynthesis>);
+  vi.stubGlobal(
+    "SpeechSynthesisUtterance",
+    MockSpeechSynthesisUtterance as unknown as typeof SpeechSynthesisUtterance,
+  );
+
+  return state;
+}
+
 async function waitForImagesToLoad(scope: ParentNode): Promise<void> {
   const images = Array.from(scope.querySelectorAll("img"));
   if (images.length === 0) {
@@ -716,6 +818,8 @@ describe("ChatView timeline estimator parity (full app)", () => {
     localStorage.clear();
     document.body.innerHTML = "";
     wsRequests.length = 0;
+    stopPlayback();
+    vi.unstubAllGlobals();
     useComposerDraftStore.setState({
       draftsByThreadId: {},
       draftThreadsByThreadId: {},
@@ -729,6 +833,8 @@ describe("ChatView timeline estimator parity (full app)", () => {
   });
 
   afterEach(() => {
+    stopPlayback();
+    vi.unstubAllGlobals();
     document.body.innerHTML = "";
   });
 
@@ -1240,6 +1346,155 @@ describe("ChatView timeline estimator parity (full app)", () => {
       await vi.waitFor(
         () => {
           expect(document.body.textContent).toContain("deep hidden detail only after expand");
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("renders a TTS play button for completed assistant messages and speaks sanitized text", async () => {
+    const speech = installSpeechSynthesisMock();
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForAssistantTts({
+        assistantMessages: [
+          {
+            id: "msg-assistant-tts-play" as MessageId,
+            text: [
+              "Here is the answer.",
+              "",
+              "```ts",
+              "const value = 1;",
+              "```",
+              "",
+              "See [the docs](https://example.com/docs).",
+            ].join("\n"),
+          },
+        ],
+      }),
+    });
+
+    try {
+      const playButton = await waitForButtonByTitle("Play message");
+      playButton.click();
+
+      await vi.waitFor(
+        () => {
+          expect(speech.speakCalls).toHaveLength(1);
+          expect(speech.speakCalls[0]?.text).toBe(
+            [
+              "Here is the answer.",
+              "",
+              "TypeScript Code Block - Open the chat to view the code.",
+              "",
+              "See the docs.",
+            ].join("\n"),
+          );
+          expect(queryButtonByTitle("Stop playback")).toBeTruthy();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("does not render a TTS button for streaming assistant messages", async () => {
+    installSpeechSynthesisMock();
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForAssistantTts({
+        assistantMessages: [
+          {
+            id: "msg-assistant-tts-streaming" as MessageId,
+            text: "Still streaming",
+            streaming: true,
+          },
+        ],
+      }),
+    });
+
+    try {
+      await waitForLayout();
+      expect(queryButtonByTitle("Play message")).toBeNull();
+      expect(queryButtonByTitle("Stop playback")).toBeNull();
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("stops playback when the active assistant TTS button is clicked again", async () => {
+    const speech = installSpeechSynthesisMock();
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForAssistantTts({
+        assistantMessages: [
+          {
+            id: "msg-assistant-tts-stop" as MessageId,
+            text: "Stop me if you have heard enough.",
+          },
+        ],
+      }),
+    });
+
+    try {
+      (await waitForButtonByTitle("Play message")).click();
+      (await waitForButtonByTitle("Stop playback")).click();
+
+      await vi.waitFor(
+        () => {
+          expect(speech.cancelCount).toBe(2);
+          expect(queryButtonByTitle("Stop playback")).toBeNull();
+          expect(queryButtonByTitle("Play message")).toBeTruthy();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("switches TTS playback when a different assistant message is selected", async () => {
+    const speech = installSpeechSynthesisMock();
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForAssistantTts({
+        assistantMessages: [
+          {
+            id: "msg-assistant-tts-first" as MessageId,
+            text: "First response.",
+          },
+          {
+            id: "msg-assistant-tts-second" as MessageId,
+            text: "Second response.",
+          },
+        ],
+      }),
+    });
+
+    try {
+      let playButtons: HTMLButtonElement[] = [];
+      await vi.waitFor(
+        () => {
+          playButtons = Array.from(document.querySelectorAll("button")).filter(
+            (button) => button.title === "Play message",
+          ) as HTMLButtonElement[];
+          expect(playButtons).toHaveLength(2);
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+
+      playButtons[0]?.click();
+      playButtons[1]?.click();
+
+      await vi.waitFor(
+        () => {
+          expect(speech.speakCalls).toHaveLength(2);
+          expect(speech.speakCalls[0]?.text).toBe("First response.");
+          expect(speech.speakCalls[1]?.text).toBe("Second response.");
+          expect(speech.cancelCount).toBe(2);
         },
         { timeout: 8_000, interval: 16 },
       );
