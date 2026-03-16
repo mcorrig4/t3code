@@ -129,6 +129,24 @@ const isRouteRequestError = (error: unknown): error is RouteRequestError =>
 const isWebPushRequestError = (error: unknown): error is WebPushRequestError =>
   Schema.is(WebPushRequestError)(error);
 
+const errorMessage = (error: unknown): string => {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+  ) {
+    return (error as { message: string }).message;
+  }
+  if (typeof error === "string" && error.trim().length > 0) {
+    return error;
+  }
+  return String(error);
+};
+
 function rejectUpgrade(socket: Duplex, statusCode: number, message: string): void {
   socket.end(
     `HTTP/1.1 ${statusCode} ${statusCode === 401 ? "Unauthorized" : "Bad Request"}\r\n` +
@@ -492,11 +510,20 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
             });
           }
 
-          yield* webPushNotifications.subscribe({
-            subscription: body.subscription,
-            userAgent: body.userAgent ?? null,
-            appVersion: body.appVersion ?? null,
-          });
+          yield* webPushNotifications
+            .subscribe({
+              subscription: body.subscription,
+              userAgent: body.userAgent ?? null,
+              appVersion: body.appVersion ?? null,
+            })
+            .pipe(
+              Effect.mapError(
+                (error) =>
+                  new RouteRequestError({
+                    message: errorMessage(error),
+                  }),
+              ),
+            );
           respond(204, { "Cache-Control": "no-store" });
           return;
         }
@@ -525,9 +552,18 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
             });
           }
 
-          yield* webPushNotifications.unsubscribe({
-            subscription: body.subscription,
-          });
+          yield* webPushNotifications
+            .unsubscribe({
+              subscription: body.subscription,
+            })
+            .pipe(
+              Effect.mapError(
+                (error) =>
+                  new RouteRequestError({
+                    message: errorMessage(error),
+                  }),
+              ),
+            );
           respond(204, { "Cache-Control": "no-store" });
           return;
         }
@@ -688,10 +724,14 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
       if (res.headersSent) {
         return;
       }
+      const message = errorMessage(error);
+      if (message.includes("not configured")) {
+        respond(409, { "Content-Type": "text/plain" }, message);
+        return;
+      }
       if (isRouteRequestError(error)) {
-        const statusCode = error.message.includes("not configured")
-          ? 409
-          : error.message.includes("Cross-origin") || error.message.includes("Forbidden origin")
+        const statusCode =
+          error.message.includes("Cross-origin") || error.message.includes("Forbidden origin")
             ? 403
             : error.message.includes("Malformed JSON") || error.message.includes("Invalid request")
               ? 400
