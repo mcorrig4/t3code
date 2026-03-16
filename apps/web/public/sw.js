@@ -1,12 +1,17 @@
-const APP_SHELL_CACHE = "t3code-app-shell-v1";
+const APP_SHELL_CACHE = "t3code-app-shell-v2";
 const APP_SHELL_URL = "/";
 const APP_SHELL_ASSETS = [
   APP_SHELL_URL,
   "/manifest.webmanifest",
+  "/manifest-t3-dev.webmanifest",
   "/apple-touch-icon.png",
+  "/apple-touch-icon-dev.png",
   "/favicon.ico",
+  "/favicon-dev.ico",
   "/favicon-32x32.png",
+  "/favicon-dev-32x32.png",
   "/favicon-16x16.png",
+  "/favicon-dev-16x16.png",
 ];
 
 function isAppNavigation(request, url) {

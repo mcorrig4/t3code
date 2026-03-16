@@ -1,0 +1,42 @@
+/* Local, intentionally brittle UI tweaks that we want to keep isolated from upstream edits. */
+
+:root[data-host-variant="t3-dev"]
+  .flex.min-w-0.flex-1.items-center.gap-1.ml-1.cursor-pointer
+  > span:last-child {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 0.1rem;
+  padding-inline: 0.42rem;
+  padding-block: 0.18rem;
+  background: color-mix(in srgb, var(--color-red-500) 12%, transparent);
+  color: transparent;
+  font-size: 0;
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+:root[data-host-variant="t3-dev"]
+  .flex.min-w-0.flex-1.items-center.gap-1.ml-1.cursor-pointer
+  > span:last-child::after {
+  content: "DEVELOP";
+  color: color-mix(in srgb, var(--color-red-600) 82%, var(--foreground));
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.16em;
+  transform: translateY(0.5px);
+}
+
+:root.dark[data-host-variant="t3-dev"]
+  .flex.min-w-0.flex-1.items-center.gap-1.ml-1.cursor-pointer
+  > span:last-child {
+  background: color-mix(in srgb, var(--color-red-500) 18%, transparent);
+}
+
+:root.dark[data-host-variant="t3-dev"]
+  .flex.min-w-0.flex-1.items-center.gap-1.ml-1.cursor-pointer
+  > span:last-child::after {
+  color: color-mix(in srgb, var(--color-red-400) 88%, var(--foreground));
+}
