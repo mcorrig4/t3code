@@ -106,6 +106,7 @@ import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
 import { cn, randomUUID } from "~/lib/utils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { toastManager } from "./ui/toast";
+import { logUserInputDebug } from "~/debug/userInputDebug";
 import { decodeProjectScriptKeybindingRule } from "~/lib/projectScriptKeybindings";
 import { type NewProjectScriptInput } from "./ProjectScriptsControl";
 import {
@@ -273,6 +274,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const planSidebarOpenOnNextThreadRef = useRef(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [terminalFocusRequestId, setTerminalFocusRequestId] = useState(0);
+  const lastPendingUserInputDebugStateRef = useRef<string | null>(null);
+  const lastThreadErrorDebugValueRef = useRef<string | null>(null);
   const [composerHighlightedItemId, setComposerHighlightedItemId] = useState<string | null>(null);
   const [pullRequestDialogState, setPullRequestDialogState] =
     useState<PullRequestDialogState | null>(null);
@@ -2516,24 +2519,47 @@ export default function ChatView({ threadId }: ChatViewProps) {
       const api = readNativeApi();
       if (!api || !activeThreadId) return;
 
+      logUserInputDebug({
+        level: "info",
+        stage: "dispatch-start",
+        message: "Dispatching thread.user-input.respond",
+        threadId: activeThreadId,
+        requestId,
+        detail: JSON.stringify(answers, null, 2),
+      });
       setRespondingUserInputRequestIds((existing) =>
         existing.includes(requestId) ? existing : [...existing, requestId],
       );
-      await api.orchestration
-        .dispatchCommand({
+      try {
+        const result = await api.orchestration.dispatchCommand({
           type: "thread.user-input.respond",
           commandId: newCommandId(),
           threadId: activeThreadId,
           requestId,
           answers,
           createdAt: new Date().toISOString(),
-        })
-        .catch((err: unknown) => {
-          setStoreThreadError(
-            activeThreadId,
-            err instanceof Error ? err.message : "Failed to submit user input.",
-          );
         });
+        logUserInputDebug({
+          level: "success",
+          stage: "dispatch-success",
+          message: "thread.user-input.respond accepted by orchestration",
+          threadId: activeThreadId,
+          requestId,
+          detail: JSON.stringify(result, null, 2),
+        });
+      } catch (err: unknown) {
+        logUserInputDebug({
+          level: "error",
+          stage: "dispatch-error",
+          message: err instanceof Error ? err.message : "Failed to submit user input.",
+          threadId: activeThreadId,
+          requestId,
+        });
+        setStoreThreadError(
+          activeThreadId,
+          err instanceof Error ? err.message : "Failed to submit user input.",
+        );
+      }
       setRespondingUserInputRequestIds((existing) => existing.filter((id) => id !== requestId));
     },
     [activeThreadId, setStoreThreadError],
@@ -2557,6 +2583,14 @@ export default function ChatView({ threadId }: ChatViewProps) {
       if (!activePendingUserInput) {
         return;
       }
+      logUserInputDebug({
+        level: "info",
+        stage: "option-selected",
+        message: `Selected option "${optionLabel}"`,
+        threadId: activeThreadId,
+        requestId: activePendingUserInput.requestId,
+        detail: JSON.stringify({ questionId }, null, 2),
+      });
       setPendingUserInputAnswersByRequestId((existing) => ({
         ...existing,
         [activePendingUserInput.requestId]: {
@@ -2571,7 +2605,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       setComposerCursor(0);
       setComposerTrigger(null);
     },
-    [activePendingUserInput],
+    [activePendingUserInput, activeThreadId],
   );
 
   const onChangeActivePendingUserInputCustomAnswer = useCallback(
@@ -2606,22 +2640,115 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
   const onAdvanceActivePendingUserInput = useCallback(() => {
     if (!activePendingUserInput || !activePendingProgress) {
+      logUserInputDebug({
+        level: "warning",
+        stage: "advance-click",
+        message: "Advance clicked without an active pending question",
+        threadId: activeThreadId,
+      });
       return;
     }
+    logUserInputDebug({
+      level: "info",
+      stage: "advance-click",
+      message: activePendingProgress.isLastQuestion
+        ? "Submit answers clicked"
+        : "Next question clicked",
+      threadId: activeThreadId,
+      requestId: activePendingUserInput.requestId,
+      detail: JSON.stringify(
+        {
+          questionIndex: activePendingProgress.questionIndex,
+          isLastQuestion: activePendingProgress.isLastQuestion,
+          canAdvance: activePendingProgress.canAdvance,
+          hasResolvedAnswers: activePendingResolvedAnswers !== null,
+        },
+        null,
+        2,
+      ),
+    });
     if (activePendingProgress.isLastQuestion) {
       if (activePendingResolvedAnswers) {
         void onRespondToUserInput(activePendingUserInput.requestId, activePendingResolvedAnswers);
+      } else {
+        logUserInputDebug({
+          level: "warning",
+          stage: "submit-blocked",
+          message: "Submit was clicked but answers were not fully resolved",
+          threadId: activeThreadId,
+          requestId: activePendingUserInput.requestId,
+        });
       }
       return;
     }
     setActivePendingUserInputQuestionIndex(activePendingProgress.questionIndex + 1);
   }, [
+    activeThreadId,
     activePendingProgress,
     activePendingResolvedAnswers,
     activePendingUserInput,
     onRespondToUserInput,
     setActivePendingUserInputQuestionIndex,
   ]);
+
+  useEffect(() => {
+    if (!activeThreadId) {
+      lastPendingUserInputDebugStateRef.current = null;
+      return;
+    }
+    const nextState = JSON.stringify({
+      pendingCount: pendingUserInputs.length,
+      activeRequestId: activePendingUserInput?.requestId ?? null,
+      questionIndex: activePendingQuestionIndex,
+      isResponding: activePendingIsResponding,
+      isLastQuestion: activePendingProgress?.isLastQuestion ?? null,
+      canAdvance: activePendingProgress?.canAdvance ?? null,
+      isComplete: activePendingProgress?.isComplete ?? null,
+      answeredQuestionCount: activePendingProgress?.answeredQuestionCount ?? null,
+      hasResolvedAnswers: activePendingResolvedAnswers !== null,
+    });
+    if (lastPendingUserInputDebugStateRef.current === nextState) {
+      return;
+    }
+    lastPendingUserInputDebugStateRef.current = nextState;
+    logUserInputDebug({
+      level: "info",
+      stage: "pending-state",
+      message: "Pending user input state changed",
+      threadId: activeThreadId,
+      requestId: activePendingUserInput?.requestId ?? null,
+      detail: nextState,
+    });
+  }, [
+    activePendingIsResponding,
+    activePendingProgress?.answeredQuestionCount,
+    activePendingProgress?.canAdvance,
+    activePendingProgress?.isComplete,
+    activePendingProgress?.isLastQuestion,
+    activePendingQuestionIndex,
+    activePendingResolvedAnswers,
+    activePendingUserInput?.requestId,
+    activeThreadId,
+    pendingUserInputs.length,
+  ]);
+
+  useEffect(() => {
+    const nextError = activeThread?.error ?? null;
+    if (lastThreadErrorDebugValueRef.current === nextError) {
+      return;
+    }
+    lastThreadErrorDebugValueRef.current = nextError;
+    if (!nextError) {
+      return;
+    }
+    logUserInputDebug({
+      level: "error",
+      stage: "thread-error",
+      message: nextError,
+      threadId: activeThread?.id ?? activeThreadId,
+      requestId: activePendingUserInput?.requestId ?? null,
+    });
+  }, [activePendingUserInput?.requestId, activeThread?.error, activeThread?.id, activeThreadId]);
 
   const onPreviousActivePendingUserInputQuestion = useCallback(() => {
     if (!activePendingProgress) {
@@ -3636,9 +3763,10 @@ export default function ChatView({ threadId }: ChatViewProps) {
                             </Button>
                           ) : null}
                           <Button
-                            type="submit"
+                            type="button"
                             size="sm"
                             className="rounded-full px-4"
+                            onClick={onAdvanceActivePendingUserInput}
                             disabled={
                               activePendingIsResponding ||
                               (activePendingProgress.isLastQuestion

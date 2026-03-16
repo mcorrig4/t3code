@@ -90,6 +90,28 @@ function isUnknownPendingApprovalRequestError(cause: Cause.Cause<ProviderService
   );
 }
 
+function isStalePendingUserInputError(cause: Cause.Cause<ProviderServiceError>): boolean {
+  const error = Cause.squash(cause);
+  if (Schema.is(ProviderAdapterRequestError)(error)) {
+    return error.detail.toLowerCase().includes("unknown pending user input request");
+  }
+  const message = Cause.pretty(cause).toLowerCase();
+  return (
+    message.includes("unknown pending user input request") ||
+    message.includes("belongs to a previous provider session")
+  );
+}
+
+function describePendingUserInputFailure(cause: Cause.Cause<ProviderServiceError>): string {
+  if (isStalePendingUserInputError(cause)) {
+    return (
+      "This question came from an earlier provider session and expired after the session restarted. " +
+      "Please ask the agent to re-ask the question."
+    );
+  }
+  return Cause.pretty(cause);
+}
+
 function isTemporaryWorktreeBranch(branch: string): boolean {
   return TEMP_WORKTREE_BRANCH_PATTERN.test(branch.trim().toLowerCase());
 }
@@ -578,7 +600,7 @@ const make = Effect.gen(function* () {
             threadId: event.payload.threadId,
             kind: "provider.user-input.respond.failed",
             summary: "Provider user input response failed",
-            detail: Cause.pretty(cause),
+            detail: describePendingUserInputFailure(cause),
             turnId: null,
             createdAt: event.payload.createdAt,
             requestId: event.payload.requestId,
