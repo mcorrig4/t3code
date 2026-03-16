@@ -21,6 +21,23 @@ const hmrClientPort = process.env.VITE_HMR_CLIENT_PORT
   : undefined;
 const hmrPort = process.env.VITE_HMR_PORT ? Number(process.env.VITE_HMR_PORT) : undefined;
 const sourcemapEnv = process.env.T3CODE_WEB_SOURCEMAP?.trim().toLowerCase();
+const webPushProxyTarget = (() => {
+  const wsUrl = process.env.VITE_WS_URL?.trim();
+  if (!wsUrl) {
+    return undefined;
+  }
+
+  try {
+    const parsed = new URL(wsUrl);
+    parsed.protocol = parsed.protocol === "wss:" ? "https:" : "http:";
+    parsed.pathname = "";
+    parsed.search = "";
+    parsed.hash = "";
+    return parsed.origin;
+  } catch {
+    return undefined;
+  }
+})();
 
 const buildSourcemap =
   sourcemapEnv === "0" || sourcemapEnv === "false"
@@ -70,6 +87,17 @@ export default defineConfig({
     strictPort: true,
     ...(allowedHosts.length > 0 ? { allowedHosts } : {}),
     hmr: hmrConfig,
+    ...(webPushProxyTarget
+      ? {
+          proxy: {
+            "/api/web-push": {
+              target: webPushProxyTarget,
+              changeOrigin: true,
+              xfwd: true,
+            },
+          },
+        }
+      : {}),
   },
   build: {
     outDir: "dist",

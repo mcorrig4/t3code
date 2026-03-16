@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   AppSettingsSchema,
+  DEFAULT_APP_SETTINGS,
   DEFAULT_TIMESTAMP_FORMAT,
   getAppModelOptions,
   normalizeCustomModelSlugs,
@@ -107,9 +108,16 @@ describe("AppSettingsSchema", () => {
       defaultThreadEnvMode: "local",
       confirmThreadDelete: false,
       enableAssistantStreaming: false,
+      pushNotificationsEnabled: false,
       timestampFormat: DEFAULT_TIMESTAMP_FORMAT,
       customCodexModels: [],
       customClaudeModels: [],
     });
+  });
+});
+
+describe("push notification defaults", () => {
+  it("defaults push notifications to disabled", () => {
+    expect(DEFAULT_APP_SETTINGS.pushNotificationsEnabled).toBe(false);
   });
 });

@@ -78,6 +78,19 @@ import { expandHomePath } from "./os-jank.ts";
 import { makeServerPushBus } from "./wsServer/pushBus.ts";
 import { makeServerReadiness } from "./wsServer/readiness.ts";
 import { decodeJsonResult, formatSchemaError } from "@t3tools/shared/schemaJson";
+import { WebPushNotifications } from "./notifications/Services/WebPushNotifications.ts";
+import {
+  decodeDeleteSubscriptionBody,
+  decodePutSubscriptionBody,
+  hasJsonContentType,
+  isAllowedOrigin,
+  isWebPushConfigRequest,
+  isWebPushSubscribeRequest,
+  isWebPushUnsubscribeRequest,
+  readJsonRequestBody,
+  toBadJsonError,
+} from "./notifications/http.ts";
+import { WebPushRequestError } from "./notifications/types.ts";
 
 /**
  * ServerShape - Service API for server lifecycle control.
@@ -109,6 +122,12 @@ const isServerNotRunningError = (error: Error): boolean => {
     maybeCode === "ERR_SERVER_NOT_RUNNING" || error.message.toLowerCase().includes("not running")
   );
 };
+
+const isRouteRequestError = (error: unknown): error is RouteRequestError =>
+  Schema.is(RouteRequestError)(error);
+
+const isWebPushRequestError = (error: unknown): error is WebPushRequestError =>
+  Schema.is(WebPushRequestError)(error);
 
 function rejectUpgrade(socket: Duplex, statusCode: number, message: string): void {
   socket.end(
@@ -217,7 +236,8 @@ export type ServerRuntimeServices =
   | TerminalManager
   | Keybindings
   | Open
-  | AnalyticsService;
+  | AnalyticsService
+  | WebPushNotifications;
 
 export class ServerLifecycleError extends Schema.TaggedErrorClass<ServerLifecycleError>()(
   "ServerLifecycleError",
@@ -227,9 +247,12 @@ export class ServerLifecycleError extends Schema.TaggedErrorClass<ServerLifecycl
   },
 ) {}
 
-class RouteRequestError extends Schema.TaggedErrorClass<RouteRequestError>()("RouteRequestError", {
-  message: Schema.String,
-}) {}
+export class RouteRequestError extends Schema.TaggedErrorClass<RouteRequestError>()(
+  "RouteRequestError",
+  {
+    message: Schema.String,
+  },
+) {}
 
 export const createServer = Effect.fn(function* (): Effect.fn.Return<
   http.Server,
@@ -255,6 +278,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   const keybindingsManager = yield* Keybindings;
   const providerHealth = yield* ProviderHealth;
   const git = yield* GitCore;
+  const webPushNotifications = yield* WebPushNotifications;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
 
@@ -424,6 +448,99 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
     void Effect.runPromise(
       Effect.gen(function* () {
         const url = new URL(req.url ?? "/", `http://localhost:${port}`);
+        if (isWebPushConfigRequest(req.method, url.pathname)) {
+          const response = webPushNotifications.config.enabled
+            ? {
+                enabled: true,
+                publicKey: webPushNotifications.config.publicKey ?? "",
+                serviceWorkerPath: "/service-worker.js",
+                manifestPath: "/manifest.webmanifest",
+              }
+            : { enabled: false };
+          respond(
+            200,
+            {
+              "Cache-Control": "no-store",
+              "Content-Type": "application/json; charset=utf-8",
+            },
+            JSON.stringify(response),
+          );
+          return;
+        }
+
+        if (isWebPushSubscribeRequest(req.method, url.pathname)) {
+          if (!hasJsonContentType(req)) {
+            respond(415, { "Content-Type": "text/plain" }, "Expected application/json body");
+            return;
+          }
+          if (!isAllowedOrigin(req)) {
+            respond(403, { "Content-Type": "text/plain" }, "Forbidden origin");
+            return;
+          }
+
+          const jsonBody = yield* Effect.tryPromise<unknown, RouteRequestError>({
+            try: () => readJsonRequestBody(req),
+            catch: (error) =>
+              new RouteRequestError({
+                message: toBadJsonError(error).message,
+              }),
+          });
+          const body = decodePutSubscriptionBody(jsonBody);
+          if (body instanceof Error) {
+            return yield* new RouteRequestError({
+              message: body.message,
+            });
+          }
+
+          yield* webPushNotifications.subscribe({
+            subscription: body.subscription,
+            userAgent: body.userAgent ?? null,
+            appVersion: body.appVersion ?? null,
+          });
+          respond(204, { "Cache-Control": "no-store" });
+          return;
+        }
+
+        if (isWebPushUnsubscribeRequest(req.method, url.pathname)) {
+          if (!hasJsonContentType(req)) {
+            respond(415, { "Content-Type": "text/plain" }, "Expected application/json body");
+            return;
+          }
+          if (!isAllowedOrigin(req)) {
+            respond(403, { "Content-Type": "text/plain" }, "Forbidden origin");
+            return;
+          }
+
+          const jsonBody = yield* Effect.tryPromise<unknown, RouteRequestError>({
+            try: () => readJsonRequestBody(req),
+            catch: (error) =>
+              new RouteRequestError({
+                message: toBadJsonError(error).message,
+              }),
+          });
+          const body = decodeDeleteSubscriptionBody(jsonBody);
+          if (body instanceof Error) {
+            return yield* new RouteRequestError({
+              message: body.message,
+            });
+          }
+
+          yield* webPushNotifications.unsubscribe({
+            subscription: body.subscription,
+          });
+          respond(204, { "Cache-Control": "no-store" });
+          return;
+        }
+
+        if (url.pathname === "/api/web-push/subscription") {
+          respond(
+            405,
+            { Allow: "PUT, DELETE", "Content-Type": "text/plain" },
+            "Method Not Allowed",
+          );
+          return;
+        }
+
         if (tryHandleProjectFaviconRequest(url, res)) {
           return;
         }
@@ -567,10 +684,27 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         }
         respond(200, { "Content-Type": contentType }, data);
       }),
-    ).catch(() => {
-      if (!res.headersSent) {
-        respond(500, { "Content-Type": "text/plain" }, "Internal Server Error");
+    ).catch((error) => {
+      if (res.headersSent) {
+        return;
       }
+      if (isRouteRequestError(error)) {
+        const statusCode = error.message.includes("not configured")
+          ? 409
+          : error.message.includes("Cross-origin") || error.message.includes("Forbidden origin")
+            ? 403
+            : error.message.includes("Malformed JSON") || error.message.includes("Invalid request")
+              ? 400
+              : 400;
+        respond(statusCode, { "Content-Type": "text/plain" }, error.message);
+        return;
+      }
+      if (isWebPushRequestError(error)) {
+        const statusCode = error.message.includes("not configured") ? 409 : 400;
+        respond(statusCode, { "Content-Type": "text/plain" }, error.message);
+        return;
+      }
+      respond(500, { "Content-Type": "text/plain" }, "Internal Server Error");
     });
   });
 
@@ -609,6 +743,9 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
 
   yield* Stream.runForEach(orchestrationEngine.streamDomainEvents, (event) =>
     pushBus.publishAll(ORCHESTRATION_WS_CHANNELS.domainEvent, event),
+  ).pipe(Effect.forkIn(subscriptionsScope));
+  yield* Stream.runForEach(orchestrationEngine.streamDomainEvents, (event) =>
+    webPushNotifications.notifyEvent(event),
   ).pipe(Effect.forkIn(subscriptionsScope));
 
   yield* Stream.runForEach(keybindingsManager.streamChanges, (event) =>

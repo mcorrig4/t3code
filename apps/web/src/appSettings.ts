@@ -37,6 +37,7 @@ export const AppSettingsSchema = Schema.Struct({
   defaultThreadEnvMode: EnvMode.pipe(withDefaults(() => "local" as const satisfies EnvMode)),
   confirmThreadDelete: Schema.Boolean.pipe(withDefaults(() => true)),
   enableAssistantStreaming: Schema.Boolean.pipe(withDefaults(() => false)),
+  pushNotificationsEnabled: Schema.Boolean.pipe(withDefaults(() => false)),
   timestampFormat: TimestampFormat.pipe(withDefaults(() => DEFAULT_TIMESTAMP_FORMAT)),
   customCodexModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
   customClaudeModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
@@ -49,7 +50,7 @@ export interface AppModelOption {
   isCustom: boolean;
 }
 
-const DEFAULT_APP_SETTINGS = AppSettingsSchema.makeUnsafe({});
+export const DEFAULT_APP_SETTINGS = AppSettingsSchema.makeUnsafe({});
 
 export function normalizeCustomModelSlugs(
   models: Iterable<string | null | undefined>,

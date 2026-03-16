@@ -37,6 +37,8 @@ import { GitServiceLive } from "./git/Layers/GitService";
 import { BunPtyAdapterLive } from "./terminal/Layers/BunPTY";
 import { NodePtyAdapterLive } from "./terminal/Layers/NodePTY";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService";
+import { WebPushSubscriptionRepositoryLive } from "./notifications/Layers/WebPushSubscriptionRepository.ts";
+import { WebPushNotificationsLive } from "./notifications/Layers/WebPushNotifications.ts";
 
 export function makeServerProviderLayer(): Layer.Layer<
   ProviderService,
@@ -126,11 +128,18 @@ export function makeServerRuntimeServicesLayer() {
     Layer.provideMerge(textGenerationLayer),
   );
 
+  const webPushLayer = WebPushNotificationsLive.pipe(
+    Layer.provideMerge(runtimeServicesLayer),
+    Layer.provideMerge(WebPushSubscriptionRepositoryLive),
+  );
+
   return Layer.mergeAll(
+    runtimeServicesLayer,
     orchestrationReactorLayer,
     gitCoreLayer,
     gitManagerLayer,
     terminalLayer,
     KeybindingsLive,
+    webPushLayer,
   ).pipe(Layer.provideMerge(NodeServices.layer));
 }
