@@ -217,14 +217,14 @@ export function UserInputDebugPanel() {
       className="fixed inset-x-2 bottom-2 z-50 max-h-[45vh] overflow-hidden rounded-2xl border border-white/12 bg-neutral-950/92 text-white shadow-2xl backdrop-blur-md sm:right-4 sm:w-[28rem] sm:inset-x-auto"
       style={floatingStyle}
     >
-      <div
-        className="flex cursor-grab touch-none items-center justify-between gap-2 border-b border-white/10 px-3 py-2 active:cursor-grabbing"
-        onPointerDown={beginDrag}
-        onPointerMove={onDragMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-      >
-        <div className="min-w-0">
+      <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-2">
+        <div
+          className="min-w-0 cursor-grab touch-none active:cursor-grabbing"
+          onPointerDown={beginDrag}
+          onPointerMove={onDragMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+        >
           <p className="text-[11px] font-semibold tracking-[0.16em] text-white/55 uppercase">
             User Input Debug
           </p>
