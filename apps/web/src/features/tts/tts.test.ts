@@ -1,9 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getSnapshot, isSupported, stopPlayback, toggleMessagePlayback } from "./tts";
+import {
+  getSnapshot,
+  isSupported,
+  setPlaybackRate,
+  stopPlayback,
+  toggleMessagePlayback,
+} from "./tts";
 
 class MockSpeechSynthesisUtterance {
   readonly text: string;
   lang = "";
+  rate = 1;
   voice: SpeechSynthesisVoice | null = null;
   onend: (() => void) | null = null;
   onerror: ((event: { error?: string }) => void) | null = null;
@@ -87,10 +94,12 @@ describe("tts", () => {
 
     expect(speech.speakCalls).toHaveLength(1);
     expect(speech.speakCalls[0]?.text).toBe("Read this response aloud.");
+    expect(speech.speakCalls[0]?.rate).toBe(1);
     expect(getSnapshot()).toMatchObject({
       status: "playing",
       activeMessageId: "message-1",
       provider: "native",
+      playbackRate: 1,
     });
   });
 
@@ -132,6 +141,25 @@ describe("tts", () => {
     expect(getSnapshot()).toMatchObject({
       status: "playing",
       activeMessageId: "message-2",
+    });
+  });
+
+  it("restarts the active utterance when playback rate changes", () => {
+    const speech = installSpeechMock();
+
+    toggleMessagePlayback({
+      messageId: "message-1",
+      text: "Read this response aloud.",
+    });
+    setPlaybackRate(1.4);
+
+    expect(speech.cancelCount).toBe(2);
+    expect(speech.speakCalls).toHaveLength(2);
+    expect(speech.speakCalls[1]?.rate).toBe(1.4);
+    expect(getSnapshot()).toMatchObject({
+      status: "playing",
+      activeMessageId: "message-1",
+      playbackRate: 1.4,
     });
   });
 });

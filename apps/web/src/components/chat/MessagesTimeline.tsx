@@ -430,11 +430,6 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                   cwd={markdownCwd}
                   isStreaming={Boolean(row.message.streaming)}
                 />
-                {!row.message.streaming && row.message.text.trim().length > 0 ? (
-                  <div className="mt-2 flex items-center gap-1.5">
-                    <AssistantMessageTtsButton messageId={row.message.id} text={row.message.text} />
-                  </div>
-                ) : null}
                 {(() => {
                   const turnSummary = turnDiffSummaryByAssistantMessageId.get(row.message.id);
                   if (!turnSummary) return null;
@@ -491,15 +486,20 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                     </div>
                   );
                 })()}
-                <p className="mt-1.5 text-[10px] text-muted-foreground/30">
-                  {formatMessageMeta(
-                    row.message.createdAt,
-                    row.message.streaming
-                      ? formatElapsed(row.durationStart, nowIso)
-                      : formatElapsed(row.durationStart, row.message.completedAt),
-                    timestampFormat,
-                  )}
-                </p>
+                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground/30">
+                  <p>
+                    {formatMessageMeta(
+                      row.message.createdAt,
+                      row.message.streaming
+                        ? formatElapsed(row.durationStart, nowIso)
+                        : formatElapsed(row.durationStart, row.message.completedAt),
+                      timestampFormat,
+                    )}
+                  </p>
+                  {!row.message.streaming && row.message.text.trim().length > 0 ? (
+                    <AssistantMessageTtsButton messageId={row.message.id} text={row.message.text} />
+                  ) : null}
+                </div>
               </div>
             </>
           );

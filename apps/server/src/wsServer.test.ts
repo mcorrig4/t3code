@@ -624,6 +624,20 @@ describe("WebSocket Server", () => {
     expect(await response.json()).toEqual({ enabled: false });
   });
 
+  it("rejects non-GET methods for the web push config route", async () => {
+    server = await createTestServer({ cwd: "/test/project" });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/web-push/config`, {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(405);
+    expect(response.headers.get("allow")).toBe("GET");
+    expect(await response.text()).toBe("Method Not Allowed");
+  });
+
   it("rejects subscription writes when web push is not configured", async () => {
     server = await createTestServer({ cwd: "/test/project" });
     const addr = server.address();
@@ -646,13 +660,18 @@ describe("WebSocket Server", () => {
       }),
     });
 
-    const body = await response.text();
-    expect([400, 409]).toContain(response.status);
-    expect(body.length).toBeGreaterThan(0);
+    expect(response.status).toBe(409);
+    expect(await response.text()).toContain("not configured");
   });
 
   it("rejects cross-origin web push subscription writes", async () => {
-    server = await createTestServer({ cwd: "/test/project" });
+    server = await createTestServer({
+      cwd: "/test/project",
+      webPushVapidPublicKey:
+        "BFYMcm-6wIm0DCv9zgQ5YmPrmWr0MbR-IED3BMIgmpo6e4JEB5PuCV0lLpYTd5NTnbnxUVBq9MoyH-wm4B_CmG8",
+      webPushVapidPrivateKey: "9aWCWtVAKOXRoPDD4fGTagtiTamrRJDwNWbXpXtNG88",
+      webPushSubject: "mailto:test@example.com",
+    });
     const addr = server.address();
     const port = typeof addr === "object" && addr !== null ? addr.port : 0;
 

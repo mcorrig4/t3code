@@ -1176,8 +1176,8 @@ export default function Sidebar() {
             </Alert>
           </SidebarGroup>
         ) : null}
-        <SidebarGroup className="px-2 py-2">
-          <div className="mb-1 flex items-center justify-between px-2">
+        <SidebarGroup className="px-2 py-2" data-projects-section>
+          <div className="mb-1 flex items-center justify-between px-2" data-projects-heading>
             <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
               Projects
             </span>
@@ -1276,7 +1276,7 @@ export default function Sidebar() {
             onDragEnd={handleProjectDragEnd}
             onDragCancel={handleProjectDragCancel}
           >
-            <SidebarMenu>
+            <SidebarMenu data-projects-list>
               <SortableContext
                 items={projects.map((project) => project.id)}
                 strategy={verticalListSortingStrategy}
@@ -1306,7 +1306,7 @@ export default function Sidebar() {
                           data-project-group
                           open={project.expanded}
                         >
-                          <div className="group/project-header relative">
+                          <div className="group/project-header relative" data-project-header>
                             <SidebarMenuButton
                               size="sm"
                               data-project-row
@@ -1347,6 +1347,7 @@ export default function Sidebar() {
                                     }
                                     showOnHover
                                     className="top-1 right-1 size-5 rounded-md p-0 text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
+                                    data-project-action
                                     onClick={(event) => {
                                       event.preventDefault();
                                       event.stopPropagation();

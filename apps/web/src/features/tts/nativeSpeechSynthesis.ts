@@ -1,6 +1,7 @@
 export interface NativeSpeechSpeakInput {
   readonly text: string;
   readonly lang?: string;
+  readonly rate?: number;
   readonly onEnd: () => void;
   readonly onError: (error: Error) => void;
 }
@@ -100,6 +101,9 @@ export function createNativeSpeechController(): NativeSpeechController {
       const voice = selectVoice(environment.speechSynthesis, utterance.lang || lang);
       if (voice) {
         utterance.voice = voice;
+      }
+      if (typeof input.rate === "number" && Number.isFinite(input.rate)) {
+        utterance.rate = input.rate;
       }
 
       utterance.onend = () => {
