@@ -1,9 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
-import { type ProviderKind } from "@t3tools/contracts";
+import { type ProviderKind, DEFAULT_GIT_TEXT_GENERATION_MODEL } from "@t3tools/contracts";
 import { getModelOptions, normalizeModelSlug } from "@t3tools/shared/model";
-import { MAX_CUSTOM_MODEL_LENGTH, useAppSettings } from "../appSettings";
+import { getAppModelOptions, MAX_CUSTOM_MODEL_LENGTH, useAppSettings } from "../appSettings";
 import { resolveAndPersistPreferredEditor } from "../editorPreferences";
 import { isElectron } from "../env";
 import { useTheme } from "../hooks/useTheme";
@@ -21,6 +21,7 @@ import {
 import { Switch } from "../components/ui/switch";
 import { APP_VERSION } from "../branding";
 import { SidebarInset } from "~/components/ui/sidebar";
+import { usePushNotifications } from "../notifications/usePushNotifications";
 
 const THEME_OPTIONS = [
   {
@@ -54,6 +55,13 @@ const MODEL_PROVIDER_SETTINGS: Array<{
     placeholder: "your-codex-model-slug",
     example: "gpt-6.7-codex-ultra-preview",
   },
+  {
+    provider: "claudeAgent",
+    title: "Claude",
+    description: "Save additional Claude model slugs for the picker and `/model` command.",
+    placeholder: "your-claude-model-slug",
+    example: "claude-sonnet-5-0",
+  },
 ] as const;
 
 const TIMESTAMP_FORMAT_LABELS = {
@@ -67,6 +75,8 @@ function getCustomModelsForProvider(
   provider: ProviderKind,
 ) {
   switch (provider) {
+    case "claudeAgent":
+      return settings.customClaudeModels;
     case "codex":
     default:
       return settings.customCodexModels;
@@ -78,6 +88,8 @@ function getDefaultCustomModelsForProvider(
   provider: ProviderKind,
 ) {
   switch (provider) {
+    case "claudeAgent":
+      return defaults.customClaudeModels;
     case "codex":
     default:
       return defaults.customCodexModels;
@@ -86,6 +98,8 @@ function getDefaultCustomModelsForProvider(
 
 function patchCustomModels(provider: ProviderKind, models: string[]) {
   switch (provider) {
+    case "claudeAgent":
+      return { customClaudeModels: models };
     case "codex":
     default:
       return { customCodexModels: models };
@@ -95,6 +109,7 @@ function patchCustomModels(provider: ProviderKind, models: string[]) {
 function SettingsRouteView() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const { settings, defaults, updateSettings } = useAppSettings();
+  const pushNotifications = usePushNotifications();
   const serverConfigQuery = useQuery(serverConfigQueryOptions());
   const [isOpeningKeybindings, setIsOpeningKeybindings] = useState(false);
   const [openKeybindingsError, setOpenKeybindingsError] = useState<string | null>(null);
@@ -102,6 +117,7 @@ function SettingsRouteView() {
     Record<ProviderKind, string>
   >({
     codex: "",
+    claudeAgent: "",
   });
   const [customModelErrorByProvider, setCustomModelErrorByProvider] = useState<
     Partial<Record<ProviderKind, string | null>>
@@ -111,6 +127,32 @@ function SettingsRouteView() {
   const codexHomePath = settings.codexHomePath;
   const keybindingsConfigPath = serverConfigQuery.data?.keybindingsConfigPath ?? null;
   const availableEditors = serverConfigQuery.data?.availableEditors;
+  const notificationsStatus = !pushNotifications.supported
+    ? "This browser does not support PWA push notifications."
+    : !pushNotifications.serverEnabled
+      ? "Push notifications are not configured on this server."
+      : pushNotifications.permission === "denied"
+        ? "Browser notifications are currently blocked."
+        : pushNotifications.subscribed
+          ? "Notifications are enabled for this device."
+          : pushNotifications.locallyEnabled && pushNotifications.permission === "granted"
+            ? "Permission is granted and the app is ready to resubscribe."
+            : pushNotifications.canRequestPermission
+              ? "Notifications are ready to enable."
+              : pushNotifications.permission === "granted"
+                ? "Browser permission is granted, but notifications are off in T3 Code."
+                : "Notifications are not enabled yet.";
+
+  const gitTextGenerationModelOptions = getAppModelOptions(
+    "codex",
+    settings.customCodexModels,
+    settings.textGenerationModel,
+  );
+  const selectedGitTextGenerationModelLabel =
+    gitTextGenerationModelOptions.find(
+      (option) =>
+        option.slug === (settings.textGenerationModel ?? DEFAULT_GIT_TEXT_GENERATION_MODEL),
+    )?.name ?? settings.textGenerationModel;
 
   const openKeybindingsFile = useCallback(() => {
     if (!keybindingsConfigPath) return;
@@ -504,6 +546,65 @@ function SettingsRouteView() {
 
             <section className="rounded-2xl border border-border bg-card p-5">
               <div className="mb-4">
+                <h2 className="text-sm font-medium text-foreground">Git</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Configure the model used for generating commit messages, PR titles, and branch
+                  names.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-4 rounded-lg border border-border bg-background px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium text-foreground">Text generation model</p>
+                  <p className="text-xs text-muted-foreground">
+                    Model used for auto-generated git content.
+                  </p>
+                </div>
+                <Select
+                  value={settings.textGenerationModel ?? DEFAULT_GIT_TEXT_GENERATION_MODEL}
+                  onValueChange={(value) => {
+                    if (value) {
+                      updateSettings({
+                        textGenerationModel: value,
+                      });
+                    }
+                  }}
+                >
+                  <SelectTrigger
+                    className="w-full shrink-0 sm:w-48"
+                    aria-label="Git text generation model"
+                  >
+                    <SelectValue>{selectedGitTextGenerationModelLabel}</SelectValue>
+                  </SelectTrigger>
+                  <SelectPopup align="end">
+                    {gitTextGenerationModelOptions.map((option) => (
+                      <SelectItem key={option.slug} value={option.slug}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectPopup>
+                </Select>
+              </div>
+
+              {settings.textGenerationModel !== defaults.textGenerationModel ? (
+                <div className="mt-3 flex justify-end">
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={() =>
+                      updateSettings({
+                        textGenerationModel: defaults.textGenerationModel,
+                      })
+                    }
+                  >
+                    Restore default
+                  </Button>
+                </div>
+              ) : null}
+            </section>
+
+            <section className="rounded-2xl border border-border bg-card p-5">
+              <div className="mb-4">
                 <h2 className="text-sm font-medium text-foreground">Threads</h2>
                 <p className="mt-1 text-xs text-muted-foreground">
                   Choose the default workspace mode for newly created draft threads.
@@ -586,6 +687,71 @@ function SettingsRouteView() {
                   </Button>
                 </div>
               ) : null}
+            </section>
+
+            <section className="rounded-2xl border border-border bg-card p-5">
+              <div className="mb-4">
+                <h2 className="text-sm font-medium text-foreground">Notifications</h2>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Enable web push notifications for assistant completions, approvals, and user input
+                  requests. Notification clicks deep-link back into the matching thread.
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="rounded-lg border border-border bg-background px-3 py-3">
+                  <p className="text-sm font-medium text-foreground">Status</p>
+                  <p className="mt-1 text-xs text-muted-foreground">{notificationsStatus}</p>
+                  {pushNotifications.error ? (
+                    <p className="mt-2 text-xs text-destructive">{pushNotifications.error}</p>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => void pushNotifications.enable()}
+                    disabled={
+                      pushNotifications.busy ||
+                      !pushNotifications.supported ||
+                      !pushNotifications.serverEnabled ||
+                      pushNotifications.permission === "denied"
+                    }
+                  >
+                    {pushNotifications.busy ? "Updating..." : "Enable notifications"}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    onClick={() => void pushNotifications.disable()}
+                    disabled={
+                      pushNotifications.busy ||
+                      (!pushNotifications.subscribed && !pushNotifications.locallyEnabled)
+                    }
+                  >
+                    Disable notifications
+                  </Button>
+                </div>
+
+                {pushNotifications.permission === "denied" ? (
+                  <p className="text-xs text-muted-foreground">
+                    Re-enable notifications from your browser’s site settings, then come back here
+                    and turn them on again.
+                  </p>
+                ) : null}
+
+                {settings.pushNotificationsEnabled !== defaults.pushNotificationsEnabled ? (
+                  <div className="flex justify-end">
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => void pushNotifications.disable()}
+                      disabled={pushNotifications.busy}
+                    >
+                      Restore default
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
             </section>
 
             <section className="rounded-2xl border border-border bg-card p-5">

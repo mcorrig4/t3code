@@ -474,6 +474,9 @@ describe("WebSocket Server", () => {
       logWebSocketEvents?: boolean;
       devUrl?: string;
       authToken?: string;
+      webPushVapidPublicKey?: string;
+      webPushVapidPrivateKey?: string;
+      webPushSubject?: string;
       stateDir?: string;
       staticDir?: string;
       providerLayer?: Layer.Layer<ProviderService, never>;
@@ -508,6 +511,9 @@ describe("WebSocket Server", () => {
       devUrl: options.devUrl ? new URL(options.devUrl) : undefined,
       noBrowser: true,
       authToken: options.authToken,
+      webPushVapidPublicKey: options.webPushVapidPublicKey,
+      webPushVapidPrivateKey: options.webPushVapidPrivateKey,
+      webPushSubject: options.webPushSubject,
       autoBootstrapProjectFromCwd: options.autoBootstrapProjectFromCwd ?? false,
       logWebSocketEvents: options.logWebSocketEvents ?? Boolean(options.devUrl),
     } satisfies ServerConfigShape);
@@ -605,6 +611,154 @@ describe("WebSocket Server", () => {
     expect(response.headers.get("content-type")).toContain("image/png");
     const bytes = Buffer.from(await response.arrayBuffer());
     expect(bytes).toEqual(Buffer.from("hello-attachment"));
+  });
+
+  it("returns disabled web push config when VAPID keys are missing", async () => {
+    server = await createTestServer({ cwd: "/test/project" });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/web-push/config`);
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ enabled: false });
+  });
+
+  it("rejects non-GET methods for the web push config route", async () => {
+    server = await createTestServer({ cwd: "/test/project" });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/web-push/config`, {
+      method: "POST",
+    });
+
+    expect(response.status).toBe(405);
+    expect(response.headers.get("allow")).toBe("GET");
+    expect(await response.text()).toBe("Method Not Allowed");
+  });
+
+  it("rejects subscription writes when web push is not configured", async () => {
+    server = await createTestServer({ cwd: "/test/project" });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/web-push/subscription`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        subscription: {
+          endpoint: "https://example.com/subscriptions/1",
+          expirationTime: null,
+          keys: {
+            p256dh: "public-key",
+            auth: "auth-key",
+          },
+        },
+      }),
+    });
+
+    expect(response.status).toBe(409);
+    expect(await response.text()).toContain("not configured");
+  });
+
+  it("rejects cross-origin web push subscription writes", async () => {
+    server = await createTestServer({
+      cwd: "/test/project",
+      webPushVapidPublicKey:
+        "BFYMcm-6wIm0DCv9zgQ5YmPrmWr0MbR-IED3BMIgmpo6e4JEB5PuCV0lLpYTd5NTnbnxUVBq9MoyH-wm4B_CmG8",
+      webPushVapidPrivateKey: "9aWCWtVAKOXRoPDD4fGTagtiTamrRJDwNWbXpXtNG88",
+      webPushSubject: "mailto:test@example.com",
+    });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/web-push/subscription`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://evil.example",
+      },
+      body: JSON.stringify({
+        subscription: {
+          endpoint: "https://example.com/subscriptions/1",
+          expirationTime: null,
+          keys: {
+            p256dh: "public-key",
+            auth: "auth-key",
+          },
+        },
+      }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(await response.text()).toContain("Forbidden origin");
+  });
+
+  it("rejects web push subscription writes without an origin header", async () => {
+    server = await createTestServer({
+      cwd: "/test/project",
+      webPushVapidPublicKey:
+        "BFYMcm-6wIm0DCv9zgQ5YmPrmWr0MbR-IED3BMIgmpo6e4JEB5PuCV0lLpYTd5NTnbnxUVBq9MoyH-wm4B_CmG8",
+      webPushVapidPrivateKey: "9aWCWtVAKOXRoPDD4fGTagtiTamrRJDwNWbXpXtNG88",
+      webPushSubject: "mailto:test@example.com",
+    });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/web-push/subscription`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        subscription: {
+          endpoint: "https://example.com/subscriptions/2",
+          expirationTime: null,
+          keys: {
+            p256dh: "public-key",
+            auth: "auth-key",
+          },
+        },
+      }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(await response.text()).toContain("Forbidden origin");
+  });
+
+  it("allows trusted claude.do origins for web push subscription writes", async () => {
+    server = await createTestServer({
+      cwd: "/test/project",
+      webPushVapidPublicKey:
+        "BFYMcm-6wIm0DCv9zgQ5YmPrmWr0MbR-IED3BMIgmpo6e4JEB5PuCV0lLpYTd5NTnbnxUVBq9MoyH-wm4B_CmG8",
+      webPushVapidPrivateKey: "9aWCWtVAKOXRoPDD4fGTagtiTamrRJDwNWbXpXtNG88",
+      webPushSubject: "mailto:test@example.com",
+    });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/web-push/subscription`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://t3-dev.claude.do",
+      },
+      body: JSON.stringify({
+        subscription: {
+          endpoint: "https://example.com/subscriptions/3",
+          expirationTime: null,
+          keys: {
+            p256dh: "public-key",
+            auth: "auth-key",
+          },
+        },
+      }),
+    });
+
+    expect(response.status).toBe(204);
   });
 
   it("serves persisted attachments for URL-encoded paths", async () => {
