@@ -511,8 +511,14 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                     </div>
                   );
                 })()}
-                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground/30">
-                  <p>
+                <div
+                  className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground/30"
+                  data-assistant-message-meta
+                >
+                  {!row.message.streaming && row.message.text.trim().length > 0 ? (
+                    <AssistantMessageTtsButton messageId={row.message.id} text={row.message.text} />
+                  ) : null}
+                  <p data-assistant-message-timestamp>
                     {formatMessageMeta(
                       row.message.createdAt,
                       row.message.streaming
@@ -521,9 +527,6 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                       timestampFormat,
                     )}
                   </p>
-                  {!row.message.streaming && row.message.text.trim().length > 0 ? (
-                    <AssistantMessageTtsButton messageId={row.message.id} text={row.message.text} />
-                  ) : null}
                 </div>
               </div>
             </>

@@ -48,6 +48,15 @@
   margin-top: 0.3rem;
 }
 
+[data-assistant-message-meta] {
+  width: 100%;
+}
+
+[data-assistant-message-timestamp] {
+  margin-left: auto;
+  text-align: right;
+}
+
 .dark [data-project-row] {
   border-color: color-mix(in srgb, var(--color-white) 7%, transparent);
   background: linear-gradient(
