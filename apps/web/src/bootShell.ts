@@ -1,6 +1,5 @@
-const BOOT_SHELL_ID = "app-boot-shell";
-const BOOT_SHELL_EXIT_DURATION_MS = 320;
-const BOOT_SHELL_FAIL_SAFE_MS = 6000;
+import { APP_BOOT_FAIL_SAFE_MS, APP_BOOT_SHELL_EXIT_MS } from "./bootConstants";
+import { APP_BOOT_SHELL_EXIT_CLASS, APP_BOOT_SHELL_ID } from "./components/loading/T3LoaderStatic";
 
 let bootShellRemovalScheduled = false;
 
@@ -8,12 +7,12 @@ function removeBootShellElement(shell: HTMLElement): void {
   shell.remove();
 }
 
-export function hideBootShell(options?: { readonly immediate?: boolean }): void {
+export function dismissBootShell(options?: { readonly immediate?: boolean }): void {
   if (typeof document === "undefined") {
     return;
   }
 
-  const shell = document.getElementById(BOOT_SHELL_ID);
+  const shell = document.getElementById(APP_BOOT_SHELL_ID);
   if (!(shell instanceof HTMLElement)) {
     return;
   }
@@ -29,16 +28,17 @@ export function hideBootShell(options?: { readonly immediate?: boolean }): void 
   }
 
   shell.dataset.state = "exiting";
-  shell.style.opacity = "0";
-  shell.style.transform = "scale(1.01)";
-  shell.style.pointerEvents = "none";
+  shell.classList.add(APP_BOOT_SHELL_EXIT_CLASS);
 
-  window.setTimeout(() => {
+  const removeSplash = () => {
     if (shell.isConnected) {
       shell.dataset.state = "hidden";
       removeBootShellElement(shell);
     }
-  }, BOOT_SHELL_EXIT_DURATION_MS);
+  };
+
+  shell.addEventListener("transitionend", removeSplash, { once: true });
+  window.setTimeout(removeSplash, APP_BOOT_SHELL_EXIT_MS + 100);
 }
 
 export function scheduleBootShellFailSafe(): void {
@@ -48,6 +48,6 @@ export function scheduleBootShellFailSafe(): void {
 
   bootShellRemovalScheduled = true;
   window.setTimeout(() => {
-    hideBootShell({ immediate: true });
-  }, BOOT_SHELL_FAIL_SAFE_MS);
+    dismissBootShell({ immediate: true });
+  }, APP_BOOT_FAIL_SAFE_MS);
 }

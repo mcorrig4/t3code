@@ -5,6 +5,7 @@ import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import type { HmrOptions } from "vite";
 import { defineConfig } from "vite";
 import pkg from "./package.json" with { type: "json" };
+import { renderT3LoaderMarkup } from "./src/components/loading/renderT3LoaderMarkup";
 
 const port = Number(process.env.PORT ?? 5733);
 const devHost = process.env.VITE_DEV_HOST ?? "127.0.0.1";
@@ -47,8 +48,6 @@ const buildSourcemap =
       : true;
 
 const hmrConfig: HmrOptions = {
-  // Keep defaults friendly for localhost, but allow a real public host when
-  // the dev UI is reverse-proxied through Caddy/Cloudflare.
   protocol: hmrProtocol,
   host: hmrHost,
   ...(hmrPath ? { path: hmrPath } : {}),
@@ -56,15 +55,21 @@ const hmrConfig: HmrOptions = {
   ...(hmrPort !== undefined ? { port: hmrPort } : {}),
 };
 
+function t3BootShellPlugin() {
+  return {
+    name: "t3-boot-shell",
+    transformIndexHtml(html: string) {
+      return html.replace("<!-- app-boot-shell -->", renderT3LoaderMarkup());
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
+    t3BootShellPlugin(),
     tanstackRouter(),
     react(),
     babel({
-      // We need to be explicit about the parser options after moving to @vitejs/plugin-react v6.0.0
-      // This is because the babel plugin only automatically parses typescript and jsx based on relative paths (e.g. "**/*.ts")
-      // whereas the previous version of the plugin parsed all files with a .ts extension.
-      // This is causing our packages/ directory to fail to parse, as they are not relative to the CWD.
       parserOpts: { plugins: ["typescript", "jsx"] },
       presets: [reactCompilerPreset()],
     }),
@@ -74,7 +79,6 @@ export default defineConfig({
     include: ["@pierre/diffs", "@pierre/diffs/react", "@pierre/diffs/worker/worker.js"],
   },
   define: {
-    // In dev mode, tell the web app where the WebSocket server lives.
     "import.meta.env.VITE_WS_URL": JSON.stringify(process.env.VITE_WS_URL ?? ""),
     "import.meta.env.APP_VERSION": JSON.stringify(pkg.version),
   },
