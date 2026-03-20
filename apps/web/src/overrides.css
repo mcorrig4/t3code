@@ -44,6 +44,10 @@
   margin-top: 0.2rem;
 }
 
+[data-project-threads] > [data-thread-item]:first-child {
+  margin-top: 0.3rem;
+}
+
 .dark [data-project-row] {
   border-color: color-mix(in srgb, var(--color-white) 7%, transparent);
   background: linear-gradient(
