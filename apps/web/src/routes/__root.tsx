@@ -11,7 +11,8 @@ import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { Throttler } from "@tanstack/react-pacer";
 
 import { APP_DISPLAY_NAME } from "../branding";
-import { hideBootShell } from "../bootShell";
+import { dismissBootShell } from "../bootShell";
+import { markBootReady } from "../bootState";
 import { Button } from "../components/ui/button";
 import { AnchoredToastProvider, ToastProvider, toastManager } from "../components/ui/toast";
 import { UserInputDebugPanel } from "../components/debug/UserInputDebugPanel";
@@ -40,9 +41,7 @@ export const Route = createRootRouteWithContext<{
 });
 
 function RootRouteView() {
-  const nativeApiAvailable = readNativeApi() !== null;
-
-  if (!nativeApiAvailable) {
+  if (!readNativeApi()) {
     return (
       <>
         <BootShellReadySignal nativeApiAvailable={false} />
@@ -78,7 +77,7 @@ function BootShellReadySignal({ nativeApiAvailable }: { nativeApiAvailable: bool
 
   useEffect(() => {
     if (!nativeApiAvailable || threadsHydrated) {
-      hideBootShell();
+      markBootReady();
     }
   }, [nativeApiAvailable, threadsHydrated]);
 
@@ -97,7 +96,7 @@ function PushNotificationsBootstrap() {
 
 function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
   useEffect(() => {
-    hideBootShell({ immediate: true });
+    dismissBootShell({ immediate: true });
   }, []);
 
   const message = errorMessage(error);

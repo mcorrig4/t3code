@@ -106,6 +106,8 @@ export async function registerServiceWorker(): Promise<void> {
   }
 
   try {
+    // Service worker lifecycle is the standards-based app upgrade path.
+    // Manifest metadata may refresh lazily, especially on iOS.
     await registerPushServiceWorker();
   } catch (error) {
     if (import.meta.env.DEV) {
