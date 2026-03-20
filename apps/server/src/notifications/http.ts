@@ -85,13 +85,28 @@ export function resolveRequestOrigin(request: http.IncomingMessage): string | nu
   return `${proto}://${host}`;
 }
 
+function isTrustedWebPushOrigin(originHeader: string): boolean {
+  try {
+    const origin = new URL(originHeader);
+    return (
+      origin.protocol === "https:" &&
+      (origin.hostname === "claude.do" || origin.hostname.endsWith(".claude.do"))
+    );
+  } catch {
+    return false;
+  }
+}
+
 export function isAllowedOrigin(request: http.IncomingMessage): boolean {
   const originHeader = request.headers.origin;
   if (typeof originHeader !== "string" || originHeader.length === 0) {
-    return true;
+    return false;
   }
   const requestOrigin = resolveRequestOrigin(request);
-  return requestOrigin !== null && requestOrigin === originHeader;
+  return (
+    (requestOrigin !== null && requestOrigin === originHeader) ||
+    isTrustedWebPushOrigin(originHeader)
+  );
 }
 
 export function validateWebPushOrigin(input: {
@@ -100,12 +115,18 @@ export function validateWebPushOrigin(input: {
 }): string | null {
   const originHeader = input.request.headers.origin;
   if (typeof originHeader !== "string" || originHeader.length === 0) {
+    return "Forbidden origin";
+  }
+  if (
+    (input.origin !== null && input.origin === originHeader) ||
+    isTrustedWebPushOrigin(originHeader)
+  ) {
     return null;
   }
   if (input.origin === null || input.origin !== originHeader) {
     return "Forbidden origin";
   }
-  return null;
+  return "Forbidden origin";
 }
 
 export function buildWebPushConfigResponse(input: {

@@ -697,6 +697,70 @@ describe("WebSocket Server", () => {
     expect(await response.text()).toContain("Forbidden origin");
   });
 
+  it("rejects web push subscription writes without an origin header", async () => {
+    server = await createTestServer({
+      cwd: "/test/project",
+      webPushVapidPublicKey:
+        "BFYMcm-6wIm0DCv9zgQ5YmPrmWr0MbR-IED3BMIgmpo6e4JEB5PuCV0lLpYTd5NTnbnxUVBq9MoyH-wm4B_CmG8",
+      webPushVapidPrivateKey: "9aWCWtVAKOXRoPDD4fGTagtiTamrRJDwNWbXpXtNG88",
+      webPushSubject: "mailto:test@example.com",
+    });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/web-push/subscription`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        subscription: {
+          endpoint: "https://example.com/subscriptions/2",
+          expirationTime: null,
+          keys: {
+            p256dh: "public-key",
+            auth: "auth-key",
+          },
+        },
+      }),
+    });
+
+    expect(response.status).toBe(403);
+    expect(await response.text()).toContain("Forbidden origin");
+  });
+
+  it("allows trusted claude.do origins for web push subscription writes", async () => {
+    server = await createTestServer({
+      cwd: "/test/project",
+      webPushVapidPublicKey:
+        "BFYMcm-6wIm0DCv9zgQ5YmPrmWr0MbR-IED3BMIgmpo6e4JEB5PuCV0lLpYTd5NTnbnxUVBq9MoyH-wm4B_CmG8",
+      webPushVapidPrivateKey: "9aWCWtVAKOXRoPDD4fGTagtiTamrRJDwNWbXpXtNG88",
+      webPushSubject: "mailto:test@example.com",
+    });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/web-push/subscription`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Origin: "https://t3-dev.claude.do",
+      },
+      body: JSON.stringify({
+        subscription: {
+          endpoint: "https://example.com/subscriptions/3",
+          expirationTime: null,
+          keys: {
+            p256dh: "public-key",
+            auth: "auth-key",
+          },
+        },
+      }),
+    });
+
+    expect(response.status).toBe(204);
+  });
+
   it("serves persisted attachments for URL-encoded paths", async () => {
     const stateDir = makeTempDir("t3code-state-attachments-encoded-");
     const attachmentPath = path.join(

@@ -744,11 +744,8 @@ function SettingsRouteView() {
                     <Button
                       size="xs"
                       variant="outline"
-                      onClick={() =>
-                        updateSettings({
-                          pushNotificationsEnabled: defaults.pushNotificationsEnabled,
-                        })
-                      }
+                      onClick={() => void pushNotifications.disable()}
+                      disabled={pushNotifications.busy}
                     >
                       Restore default
                     </Button>
