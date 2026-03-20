@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "generate:startup-assets": "/home/claude/.bun/bin/bun ./scripts/render-boot-shell.tsx && node ./scripts/generate-ios-pwa-splash.mjs && node ./scripts/apply-startup-assets.mjs",
     "prepare": "effect-language-service patch",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
@@ -51,6 +52,7 @@
     "@vitejs/plugin-react": "^6.0.0",
     "@vitest/browser-playwright": "^4.0.18",
     "babel-plugin-react-compiler": "^19.0.0-beta-e552027-20250112",
+    "ios-pwa-splash": "^1.0.0",
     "msw": "^2.12.10",
     "playwright": "^1.58.2",
     "tailwindcss": "^4.0.0",
