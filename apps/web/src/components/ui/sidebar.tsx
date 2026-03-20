@@ -227,7 +227,7 @@ function Sidebar({
         <Sheet onOpenChange={setOpenMobile} open={openMobile} {...props}>
           <SheetPopup
             className={cn(
-              "w-(--sidebar-width) max-w-none bg-sidebar p-0 text-sidebar-foreground",
+              "w-(--sidebar-width) max-w-[95vw] bg-sidebar p-0 text-sidebar-foreground",
               className,
             )}
             data-mobile="true"

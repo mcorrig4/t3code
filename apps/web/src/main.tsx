@@ -8,6 +8,7 @@ import "./index.css";
 import "./overrides.css";
 
 import { isElectron } from "./env";
+import { scheduleBootShellFailSafe } from "./bootShell";
 import { registerServiceWorker } from "./pwa";
 import { getRouter } from "./router";
 import { APP_DISPLAY_NAME } from "./branding";
@@ -21,6 +22,7 @@ const router = getRouter(history);
 applyRuntimeBranding(document, window.location.hostname);
 document.title = APP_DISPLAY_NAME;
 void registerServiceWorker();
+scheduleBootShellFailSafe();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
