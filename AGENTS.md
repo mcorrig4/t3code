@@ -31,6 +31,11 @@ If a tradeoff is required, choose correctness and robustness over short-term con
 
 Long term maintainability is a core priority. If you add new functionality, first check if there is shared logic that can be extracted to a separate module. Duplicate logic across multiple files is a code smell and should be avoided. Don't be afraid to change existing code. Don't take shortcuts by just adding local logic to solve a problem.
 
+## Enhancement Tracking
+
+- Always document fork-specific enhancements, fixes, operational deviations, and later deprecations in `ENHANCEMENTS.md` whenever we change behavior relative to `upstream`.
+- Keep the matching `ENHANCEMENTS.md` entry current when upstream syncs replace, obsolete, or partially absorb one of our local changes so merges stay understandable.
+
 ## Repository Boundaries
 
 - Never open issues, pull requests, or discussions against upstream repositories or organization-owned repositories unless the user explicitly asks for that exact action in the current conversation.
