@@ -11,6 +11,7 @@ import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { Throttler } from "@tanstack/react-pacer";
 
 import { APP_DISPLAY_NAME } from "../branding";
+import { hideBootShell } from "../bootShell";
 import { Button } from "../components/ui/button";
 import { AnchoredToastProvider, ToastProvider, toastManager } from "../components/ui/toast";
 import { UserInputDebugPanel } from "../components/debug/UserInputDebugPanel";
@@ -39,29 +40,49 @@ export const Route = createRootRouteWithContext<{
 });
 
 function RootRouteView() {
-  if (!readNativeApi()) {
+  const nativeApiAvailable = readNativeApi() !== null;
+
+  if (!nativeApiAvailable) {
     return (
-      <div className="flex h-screen flex-col bg-background text-foreground">
-        <div className="flex flex-1 items-center justify-center">
-          <p className="text-sm text-muted-foreground">
-            Connecting to {APP_DISPLAY_NAME} server...
-          </p>
+      <>
+        <BootShellReadySignal nativeApiAvailable={false} />
+        <div className="flex h-screen flex-col bg-background text-foreground">
+          <div className="flex flex-1 items-center justify-center">
+            <p className="text-sm text-muted-foreground">
+              Connecting to {APP_DISPLAY_NAME} server...
+            </p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <ToastProvider>
-      <AnchoredToastProvider>
-        <EventRouter />
-        <PushNotificationsBootstrap />
-        <DesktopProjectBootstrap />
-        <UserInputDebugPanel />
-        <Outlet />
-      </AnchoredToastProvider>
-    </ToastProvider>
+    <>
+      <BootShellReadySignal nativeApiAvailable />
+      <ToastProvider>
+        <AnchoredToastProvider>
+          <EventRouter />
+          <PushNotificationsBootstrap />
+          <DesktopProjectBootstrap />
+          <UserInputDebugPanel />
+          <Outlet />
+        </AnchoredToastProvider>
+      </ToastProvider>
+    </>
   );
+}
+
+function BootShellReadySignal({ nativeApiAvailable }: { nativeApiAvailable: boolean }) {
+  const threadsHydrated = useStore((store) => store.threadsHydrated);
+
+  useEffect(() => {
+    if (!nativeApiAvailable || threadsHydrated) {
+      hideBootShell();
+    }
+  }, [nativeApiAvailable, threadsHydrated]);
+
+  return null;
 }
 
 function PushNotificationsBootstrap() {
@@ -75,6 +96,10 @@ function PushNotificationsBootstrap() {
 }
 
 function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
+  useEffect(() => {
+    hideBootShell({ immediate: true });
+  }, []);
+
   const message = errorMessage(error);
   const details = errorDetails(error);
 
