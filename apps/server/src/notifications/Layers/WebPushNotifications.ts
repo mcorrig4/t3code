@@ -24,6 +24,13 @@ class WebPushDeliveryError extends Schema.TaggedErrorClass<WebPushDeliveryError>
   },
 ) {}
 
+class StoredSubscriptionDecodeError extends Schema.TaggedErrorClass<StoredSubscriptionDecodeError>()(
+  "StoredSubscriptionDecodeError",
+  {
+    message: Schema.String,
+  },
+) {}
+
 function summarizeDeliveryError(error: unknown): string {
   if (error instanceof Error && error.message.trim().length > 0) {
     return error.message.slice(0, TRANSIENT_DELIVERY_ERROR_MAX_LENGTH);
@@ -39,6 +46,21 @@ function isPermanentDeliveryError(error: unknown): boolean {
     ((error as { statusCode?: unknown }).statusCode === 404 ||
       (error as { statusCode?: unknown }).statusCode === 410)
   );
+}
+
+function decodeStoredSubscription(
+  input: string,
+): Effect.Effect<PushSubscription, StoredSubscriptionDecodeError> {
+  return Effect.try({
+    try: () => JSON.parse(input) as PushSubscription,
+    catch: (error) =>
+      new StoredSubscriptionDecodeError({
+        message:
+          error instanceof Error
+            ? error.message
+            : "Stored web push subscription JSON could not be parsed.",
+      }),
+  });
 }
 
 const makeWebPushNotifications = Effect.gen(function* () {
@@ -164,11 +186,27 @@ const makeWebPushNotifications = Effect.gen(function* () {
         subscriptions,
         (subscriptionRecord) =>
           Effect.gen(function* () {
-            const subscription = JSON.parse(
-              subscriptionRecord.subscriptionJson,
-            ) as PushSubscription;
-
             const nowIso = new Date().toISOString();
+            const subscription = yield* decodeStoredSubscription(
+              subscriptionRecord.subscriptionJson,
+            ).pipe(
+              Effect.map((value) => value as PushSubscription | null),
+              Effect.catch((error) =>
+                Effect.gen(function* () {
+                  yield* repository
+                    .deleteByEndpoint({ endpoint: subscriptionRecord.endpoint })
+                    .pipe(Effect.catch(() => Effect.void));
+                  yield* Effect.logWarning("deleted malformed stored web push subscription", {
+                    endpoint: subscriptionRecord.endpoint,
+                    error: error.message,
+                  });
+                  return null;
+                }),
+              ),
+            );
+            if (subscription === null) {
+              return;
+            }
             const delivered = yield* notifySubscription({
               subscription,
               payload,

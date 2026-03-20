@@ -1,6 +1,13 @@
 import { useSyncExternalStore } from "react";
 import { sanitizeAssistantMessageForTts } from "./sanitizeTtsText";
-import { getSnapshot, isSupported, subscribe, toggleMessagePlayback } from "./tts";
+import {
+  getPlaybackRateOptions,
+  getSnapshot,
+  isSupported,
+  setPlaybackRate,
+  subscribe,
+  toggleMessagePlayback,
+} from "./tts";
 
 export function useMessageTts(messageId: string, text: string) {
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
@@ -13,7 +20,10 @@ export function useMessageTts(messageId: string, text: string) {
     supported,
     isPlaying,
     canPlay,
+    playbackRate: snapshot.playbackRate,
+    playbackRateOptions: getPlaybackRateOptions(),
     title: isPlaying ? "Stop playback" : "Play message",
+    setPlaybackRate,
     toggle() {
       if (!canPlay) {
         return;

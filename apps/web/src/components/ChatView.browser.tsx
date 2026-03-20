@@ -99,6 +99,7 @@ interface MountedChatView {
 class MockSpeechSynthesisUtterance {
   readonly text: string;
   lang = "";
+  rate = 1;
   voice: SpeechSynthesisVoice | null = null;
   onend: (() => void) | null = null;
   onerror: ((event: { error?: string }) => void) | null = null;
@@ -1584,6 +1585,7 @@ describe("ChatView timeline estimator parity (full app)", () => {
               "See the docs.",
             ].join("\n"),
           );
+          expect(speech.speakCalls[0]?.rate).toBe(1);
           expect(queryButtonByTitle("Stop playback")).toBeTruthy();
         },
         { timeout: 8_000, interval: 16 },
@@ -1640,6 +1642,43 @@ describe("ChatView timeline estimator parity (full app)", () => {
           expect(speech.cancelCount).toBe(2);
           expect(queryButtonByTitle("Stop playback")).toBeNull();
           expect(queryButtonByTitle("Play message")).toBeTruthy();
+        },
+        { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("shows a playback speed control while speaking and restarts at the selected rate", async () => {
+    const speech = installSpeechSynthesisMock();
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot: createSnapshotForAssistantTts({
+        assistantMessages: [
+          {
+            id: "msg-assistant-tts-rate" as MessageId,
+            text: "Play this at a different speed.",
+          },
+        ],
+      }),
+    });
+
+    try {
+      (await waitForButtonByTitle("Play message")).click();
+
+      const speedSelect = await waitForElement(
+        () => document.querySelector<HTMLSelectElement>('select[aria-label="Playback speed"]'),
+        "Unable to find playback speed selector.",
+      );
+      speedSelect.value = "1.4";
+      speedSelect.dispatchEvent(new Event("change", { bubbles: true }));
+
+      await vi.waitFor(
+        () => {
+          expect(speech.cancelCount).toBe(2);
+          expect(speech.speakCalls).toHaveLength(2);
+          expect(speech.speakCalls[1]?.rate).toBe(1.4);
         },
         { timeout: 8_000, interval: 16 },
       );

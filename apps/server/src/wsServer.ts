@@ -80,6 +80,7 @@ import { makeServerReadiness } from "./wsServer/readiness.ts";
 import { decodeJsonResult, formatSchemaError } from "@t3tools/shared/schemaJson";
 import { WebPushNotifications } from "./notifications/Services/WebPushNotifications.ts";
 import {
+  buildWebPushConfigResponse,
   decodeDeleteSubscriptionBody,
   decodePutSubscriptionBody,
   hasJsonContentType,
@@ -467,14 +468,10 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
       Effect.gen(function* () {
         const url = new URL(req.url ?? "/", `http://localhost:${port}`);
         if (isWebPushConfigRequest(req.method, url.pathname)) {
-          const response = webPushNotifications.config.enabled
-            ? {
-                enabled: true,
-                publicKey: webPushNotifications.config.publicKey ?? "",
-                serviceWorkerPath: "/service-worker.js",
-                manifestPath: "/manifest.webmanifest",
-              }
-            : { enabled: false };
+          const response = buildWebPushConfigResponse({
+            enabled: webPushNotifications.config.enabled,
+            publicKey: webPushNotifications.config.publicKey,
+          });
           respond(
             200,
             {
@@ -486,7 +483,20 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
           return;
         }
 
+        if (url.pathname === "/api/web-push/config") {
+          respond(405, { Allow: "GET", "Content-Type": "text/plain" }, "Method Not Allowed");
+          return;
+        }
+
         if (isWebPushSubscribeRequest(req.method, url.pathname)) {
+          if (!webPushNotifications.config.enabled) {
+            respond(
+              409,
+              { "Content-Type": "text/plain" },
+              "Web push notifications are not configured on this server.",
+            );
+            return;
+          }
           if (!hasJsonContentType(req)) {
             respond(415, { "Content-Type": "text/plain" }, "Expected application/json body");
             return;
@@ -529,6 +539,14 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         }
 
         if (isWebPushUnsubscribeRequest(req.method, url.pathname)) {
+          if (!webPushNotifications.config.enabled) {
+            respond(
+              409,
+              { "Content-Type": "text/plain" },
+              "Web push notifications are not configured on this server.",
+            );
+            return;
+          }
           if (!hasJsonContentType(req)) {
             respond(415, { "Content-Type": "text/plain" }, "Expected application/json body");
             return;
