@@ -50,7 +50,7 @@ export type WebPushSubscriptionKeys = typeof WebPushSubscriptionKeysSchema.Type;
 
 export const WebPushSubscriptionJsonSchema = Schema.Struct({
   endpoint: Schema.String.check(Schema.isNonEmpty()),
-  expirationTime: Schema.NullOr(Schema.Number),
+  expirationTime: Schema.optional(Schema.NullOr(Schema.Number)),
   keys: WebPushSubscriptionKeysSchema,
 });
 export type WebPushSubscriptionJson = typeof WebPushSubscriptionJsonSchema.Type;

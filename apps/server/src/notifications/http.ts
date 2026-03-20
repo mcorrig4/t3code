@@ -1,7 +1,7 @@
 import type http from "node:http";
 
-import { Result } from "effect";
-import { decodeUnknownJsonResult, formatSchemaError } from "@t3tools/shared/schemaJson";
+import { Exit, Schema } from "effect";
+import { formatSchemaError } from "@t3tools/shared/schemaJson";
 
 import {
   DeleteWebPushSubscriptionRequest,
@@ -16,8 +16,8 @@ export const WEB_PUSH_SUBSCRIPTION_PATH = "/api/web-push/subscription";
 export const WEB_PUSH_SERVICE_WORKER_PATH = "/service-worker.js";
 export const WEB_PUSH_MANIFEST_PATH = "/manifest.webmanifest";
 
-const decodePutSubscriptionRequest = decodeUnknownJsonResult(PutWebPushSubscriptionRequest);
-const decodeDeleteSubscriptionRequest = decodeUnknownJsonResult(DeleteWebPushSubscriptionRequest);
+const decodePutSubscriptionRequest = Schema.decodeUnknownExit(PutWebPushSubscriptionRequest);
+const decodeDeleteSubscriptionRequest = Schema.decodeUnknownExit(DeleteWebPushSubscriptionRequest);
 
 export function isWebPushConfigRequest(method: string | undefined, pathname: string): boolean {
   return method === "GET" && pathname === WEB_PUSH_CONFIG_PATH;
@@ -45,18 +45,18 @@ export function decodePutSubscriptionBody(
   input: unknown,
 ): PutWebPushSubscriptionRequestBody | Error {
   const decoded = decodePutSubscriptionRequest(input);
-  return Result.isFailure(decoded)
-    ? new Error(String(formatSchemaError(decoded.failure as never)))
-    : decoded.success;
+  return Exit.isFailure(decoded)
+    ? new Error(String(formatSchemaError(decoded.cause as never)))
+    : decoded.value;
 }
 
 export function decodeDeleteSubscriptionBody(
   input: unknown,
 ): DeleteWebPushSubscriptionRequestBody | Error {
   const decoded = decodeDeleteSubscriptionRequest(input);
-  return Result.isFailure(decoded)
-    ? new Error(String(formatSchemaError(decoded.failure as never)))
-    : decoded.success;
+  return Exit.isFailure(decoded)
+    ? new Error(String(formatSchemaError(decoded.cause as never)))
+    : decoded.value;
 }
 
 export function hasJsonContentType(request: http.IncomingMessage): boolean {
