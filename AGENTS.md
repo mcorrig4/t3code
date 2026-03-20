@@ -33,10 +33,11 @@ Long term maintainability is a core priority. If you add new functionality, firs
 
 ## Repository Boundaries
 
-- Never open issues, pull requests, or discussions against upstream repositories or organization-owned repositories unless the user explicitly asks for that exact action in the current conversation.
-- Treat `pingdotgg/t3code` as upstream-only by default. Do not open PRs, issues, or other GitHub artifacts there without explicit user approval.
-- If collaboration requires sharing work, prefer pushing to the user's fork or keeping changes local until the user confirms the target remote and publication scope.
-- Before any publish/share action that affects a remote repository, verify the target owner/repo and state that target clearly in your user update.
+- Default all GitHub collaboration actions to the user's fork: `mcorrig4/t3code`.
+- When the user says "open a PR", "create a PR", "open an issue", "create an issue", or similar without naming a repo, interpret that as an action within `mcorrig4/t3code`.
+- For pull requests, the default target is `mcorrig4/t3code` with the current branch merging into `main` on `mcorrig4/t3code`, unless the user explicitly asks for a different base branch.
+- Treat `pingdotgg/t3code` as strictly upstream-only. Never open PRs, issues, discussions, or other GitHub artifacts there from this environment. If the user wants something opened against `pingdotgg/t3code`, explain that this is not allowed here and they should open it themselves in the GitHub website.
+- If a request could affect a remote repository and the target is ambiguous, pause only long enough to confirm the owner/repo before publishing.
 
 ## Package Roles
 
