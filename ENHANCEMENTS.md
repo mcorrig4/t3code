@@ -93,6 +93,38 @@ Copy this block for new entries:
 - Notes:
   - 2026-03-16: Added root-scoped manifest metadata, iOS standalone meta tags, and a minimal service worker registration path.
 
+## Mobile Sidebar Max-Width Override
+
+- Status: active
+- First added: 2026-03-20
+- Last updated: 2026-03-23
+- Owners: T3 Code fork
+- Upstream impact: low
+- Areas: mobile sidebar layout, shadcn sheet override behavior, small-screen navigation
+- Why this exists: the mobile sidebar should leave visible click-outside space instead of expanding edge-to-edge, even when the sidebar sheet sets `max-w-none`.
+- Files:
+  - `apps/web/src/components/ui/sidebar.tsx`
+  - `apps/web/src/overrides.css`
+  - `ENHANCEMENTS.md`
+- Runtime touchpoints:
+  - mobile sidebar sheet in the web app
+  - touch devices and narrow browser widths
+- If this breaks, look for:
+  - the mobile sidebar covers the full viewport width with no dismissible gutter
+  - tapping outside the sidebar becomes harder or impossible on narrow screens
+  - upstream sidebar refactors remove the `data-mobile="true"` and `data-slot="sidebar"` hook points
+- Verify with:
+  - `/home/claude/.bun/bin/bun fmt`
+  - `/home/claude/.bun/bin/bun lint`
+  - `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
+  - open the web app in a mobile viewport and confirm the sidebar caps at `95vw` with visible click-outside space
+- Rollback notes:
+  - revert the mobile `max-width: 95vw` override in `apps/web/src/overrides.css`
+  - if needed, restore the previous `SheetPopup` sizing behavior in `apps/web/src/components/ui/sidebar.tsx`
+- Notes:
+  - 2026-03-20: PR #13 merged `fix: leave click-outside space for mobile sidebar`.
+  - 2026-03-23: Follow-up commit `Preserve mobile sidebar max width override` kept the fork override in place after upstream/sidebar changes.
+
 ## Backfill Needed
 
 Older fork-specific changes that predate this ledger should be added here over time as we touch them. Until then, use `git log upstream/main..main` as the catch-all diff against upstream.
