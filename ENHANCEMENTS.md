@@ -56,6 +56,61 @@ Copy this block for new entries:
 
 ## Active Enhancements
 
+## Standardized Enhancement Ledger Filename
+
+- Status: active
+- First added: 2026-03-20
+- Last updated: 2026-03-20
+- Owners: T3 Code fork
+- Upstream impact: none
+- Areas: repository documentation, contributor workflow, fork change tracking
+- Why this exists: the enhancement ledger was previously named `enhancement.MD`, which was easy to miss because it did not match common markdown naming conventions or obvious filename searches.
+- Files:
+  - `ENHANCEMENTS.md`
+- Runtime touchpoints:
+  - contributor searches for enhancement tracking docs
+  - repo-root documentation workflows
+- If this breaks, look for:
+  - contributors assume no enhancement ledger exists
+  - tooling or humans searching for `ENHANCEMENTS.md` miss the ledger
+- Verify with:
+  - confirm the repo root contains `ENHANCEMENTS.md`
+  - run `rg --files -g 'ENHANCEMENTS.md' .`
+- Rollback notes:
+  - rename `ENHANCEMENTS.md` back to `enhancement.MD`
+  - update any documentation or scripts that begin depending on the standardized filename
+- Notes:
+  - 2026-03-20: Renamed the ledger from `enhancement.MD` to `ENHANCEMENTS.md` for discoverability and consistency.
+
+## Required Enhancement Ledger Maintenance
+
+- Status: active
+- First added: 2026-03-20
+- Last updated: 2026-03-20
+- Owners: T3 Code fork
+- Upstream impact: none
+- Areas: contributor workflow, upstream sync hygiene, fork maintenance
+- Why this exists: we need a reliable record of local fixes and enhancements so upstream merges are easier to reconcile and so obsolete fork-specific patches can be deprecated cleanly when upstream covers them.
+- Files:
+  - `AGENTS.md`
+  - `ENHANCEMENTS.md`
+- Runtime touchpoints:
+  - day-to-day coding workflow
+  - upstream sync and conflict resolution
+  - fork cleanup after upstream fixes land
+- If this breaks, look for:
+  - fork-specific changes ship without corresponding ledger entries
+  - upstream syncs are harder to reason about because local deviations are undocumented
+  - stale fixes remain active after upstream makes them unnecessary
+- Verify with:
+  - confirm `AGENTS.md` instructs contributors to document fork-specific changes and deprecations in `ENHANCEMENTS.md`
+  - confirm new fork-only changes update or add a matching ledger entry
+- Rollback notes:
+  - remove the enhancement-tracking reminder from `AGENTS.md`
+  - accept higher manual effort during upstream reconciliation
+- Notes:
+  - 2026-03-20: Added explicit repo instructions to keep `ENHANCEMENTS.md` current as local changes are added, updated, or deprecated after upstream syncs.
+
 ## Root-Scoped PWA Install Behavior
 
 - Status: active
