@@ -1,5 +1,9 @@
 /* Local, intentionally brittle UI tweaks that we want to keep isolated from upstream edits. */
 
+[data-mobile="true"][data-slot="sidebar"] {
+  max-width: 95vw;
+}
+
 [data-projects-heading] {
   margin-bottom: 0.55rem;
   padding-bottom: 0.45rem;
