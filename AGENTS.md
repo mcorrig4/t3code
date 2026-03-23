@@ -31,10 +31,11 @@ If a tradeoff is required, choose correctness and robustness over short-term con
 
 Long term maintainability is a core priority. If you add new functionality, first check if there is shared logic that can be extracted to a separate module. Duplicate logic across multiple files is a code smell and should be avoided. Don't be afraid to change existing code. Don't take shortcuts by just adding local logic to solve a problem.
 
-## Enhancement Tracking
-
-- Always document fork-specific enhancements, fixes, operational deviations, and later deprecations in `ENHANCEMENTS.md` whenever we change behavior relative to `upstream`.
-- Keep the matching `ENHANCEMENTS.md` entry current when upstream syncs replace, obsolete, or partially absorb one of our local changes so merges stay understandable.
+- When adding a fork-specific feature, prefer modular patterns that minimize churn in the core codebase, such as sidecar modules, isolated adapters, thin integration seams, CSS overrides, feature-specific routes, or other self-contained layers that are easy to carry during upstream syncs.
+- Before changing core behavior broadly, first consider whether the same outcome can be achieved with a smaller, more modular extension point that keeps the upstream diff narrow and easier to reason about.
+- Every fork-specific enhancement, bug fix, behavior change, deployment customization, or operational deviation from upstream must be recorded in `ENHANCEMENTS.md`.
+- Keep `ENHANCEMENTS.md` detailed enough that we could theoretically recreate our fork-specific behavior from scratch, and use it as both a historical changelog and a sync-review ledger when comparing incoming upstream changes against our local modifications.
+- During upstream sync planning or conflict review, consult `ENHANCEMENTS.md` to decide whether a local change should stay, be dropped in favor of upstream, or be merged with an upstream alternative implementation.
 
 ## Repository Boundaries
 
