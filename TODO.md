@@ -35,6 +35,7 @@
 - [ ] Add sound effects for completed turns or needs-input states
 - [ ] Add settings toggles to control notification sound effects
 - [ ] Add git icon in front of repo name in header
+- [ ] Fix question submit button resetting after press
 
 ## Bigger things
 
