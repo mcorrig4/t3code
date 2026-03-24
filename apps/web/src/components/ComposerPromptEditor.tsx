@@ -1096,7 +1096,6 @@ function ComposerPromptEditorInner({
                 "block max-h-[200px] min-h-17.5 w-full overflow-y-auto whitespace-pre-wrap break-words bg-transparent text-base leading-relaxed text-foreground focus:outline-none sm:text-[14px]",
                 className,
               )}
-              autoCorrect="off"
               data-testid="composer-editor"
               aria-placeholder={placeholder}
               placeholder={<span />}

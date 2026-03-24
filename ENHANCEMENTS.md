@@ -649,38 +649,6 @@ Copy this block for new entries:
   - 2026-03-20: Added the fork-specific GitHub mutation guard policy and clarified upstream PR restrictions.
   - 2026-03-24: Added explicit branch safety docs plus a local safe-delete helper after nearly treating `production` as cleanup inventory.
 
-## Composer Autocorrect Disabled
-
-- Status: active
-- First added: 2026-03-20
-- Last updated: 2026-03-24
-- Owners: T3 Code fork
-- Upstream impact: low
-- Areas: chat composer text entry, mobile keyboard behavior, contenteditable input ergonomics
-- Why this exists: coding prompts and shell commands are harmed by browser autocorrect and spellcheck behavior in the chat composer, so the fork disables those text-normalization features on the contenteditable prompt surface.
-- Files:
-  - `ENHANCEMENTS.md`
-  - `apps/web/src/components/ComposerPromptEditor.tsx`
-- Runtime touchpoints:
-  - the main chat composer
-  - mobile keyboard/autocorrect behavior
-  - spellcheck and autocorrect handling for code-like text input
-- If this breaks, look for:
-  - iOS or browser autocorrect mutating commands, paths, or code snippets as they are typed
-  - spellcheck markers appearing inside the composer
-  - contenteditable attributes drifting during upstream composer refactors
-- Verify with:
-  - `/home/claude/.bun/bin/bun fmt`
-  - `/home/claude/.bun/bin/bun lint`
-  - `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
-  - type command-like text into the composer on mobile and confirm autocorrect does not rewrite it
-  - inspect the rendered composer element and confirm spellcheck/autocorrect remain disabled
-- Rollback notes:
-  - revert the composer input attributes in `apps/web/src/components/ComposerPromptEditor.tsx`
-  - if upstream adds a different code-friendly composer strategy, prefer that and drop this local override
-- Notes:
-  - 2026-03-20: Disabled chat composer autocorrect and left the behavior in place through later composer refactors.
-
 ## Compact Standalone PWA Open-With Suppression
 
 - Status: active
