@@ -290,7 +290,7 @@ Copy this block for new entries:
 
 - Status: active
 - First added: 2026-03-20
-- Last updated: 2026-03-23
+- Last updated: 2026-03-24
 - Owners: T3 Code fork
 - Upstream impact: low
 - Areas: mobile sidebar layout, shadcn sheet override behavior, small-screen navigation
@@ -310,13 +310,14 @@ Copy this block for new entries:
   - `/home/claude/.bun/bin/bun fmt`
   - `/home/claude/.bun/bin/bun lint`
   - `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
-  - open the web app in a mobile viewport and confirm the sidebar caps at `95vw` with visible click-outside space
+  - open the web app in a mobile viewport and confirm the sidebar caps at `93vw` with visible click-outside space
 - Rollback notes:
-  - revert the mobile `max-width: 95vw` override in `apps/web/src/overrides.css`
+  - revert the mobile `max-width: 93vw` override in `apps/web/src/overrides.css`
   - if needed, restore the previous `SheetPopup` sizing behavior in `apps/web/src/components/ui/sidebar.tsx`
 - Notes:
   - 2026-03-20: PR #13 merged `fix: leave click-outside space for mobile sidebar`.
   - 2026-03-23: Follow-up commit `Preserve mobile sidebar max width override` kept the fork override in place after upstream/sidebar changes.
+  - 2026-03-24: Tightened the fork mobile sidebar width cap from `95vw` to `93vw` to leave a slightly larger dismissible gutter on small screens.
 
 ## Project Thread Spacing Polish
 
