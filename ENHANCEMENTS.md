@@ -197,7 +197,7 @@ Copy this block for new entries:
   - `apps/server/src/wsServer.ts`
   - `apps/server/src/wsServer.test.ts`
   - `apps/server/src/persistence/Migrations.ts`
-  - `apps/server/src/persistence/Migrations/014_WebPushSubscriptions.ts`
+  - `apps/server/src/persistence/Migrations/016_WebPushSubscriptions.ts`
   - `apps/server/src/notifications/http.ts`
   - `apps/server/src/notifications/http.test.ts`
   - `apps/server/src/notifications/types.ts`
@@ -372,7 +372,7 @@ Copy this block for new entries:
   - `apps/web/src/components/loading/renderT3LoaderMarkup.tsx`
 - Runtime touchpoints:
   - `t3.claude.do`
-  - `app-dev.claude.do`
+  - `t3-dev.claude.do`
   - iOS Safari and iOS Home Screen installs
   - first document paint before React hydration
 - If this breaks, look for:
@@ -436,6 +436,202 @@ Copy this block for new entries:
 - Notes:
   - 2026-03-16: Added the first native-browser TTS implementation for completed assistant messages with markdown sanitization and one-message-at-a-time playback.
   - 2026-03-23: Moved the TTS control into the assistant metadata row, kept the play button on the left, right-aligned the timestamp, and added an in-playback speed selector from `0.8x` to `2.0x` in `0.1` steps.
+
+## Stale Pending User-Input Recovery And Debugging
+
+- Status: active
+- First added: 2026-03-16
+- Last updated: 2026-03-24
+- Owners: T3 Code fork
+- Upstream impact: medium
+- Areas: provider session restart recovery, pending approval cleanup, pending user-input cleanup, in-app debugging
+- Why this exists: provider callback state does not survive app restarts or recovered sessions, so stale approval and user-input prompts need to be cleared cleanly instead of lingering in the UI, and the fork keeps a floating debug panel plus toast breadcrumbs to diagnose these failures on mobile and dev surfaces.
+- Files:
+  - `ENHANCEMENTS.md`
+  - `apps/server/src/orchestration/Layers/ProviderCommandReactor.ts`
+  - `apps/server/src/orchestration/Layers/ProviderCommandReactor.test.ts`
+  - `apps/server/src/provider/Layers/ProviderService.ts`
+  - `apps/server/src/provider/Layers/ProviderService.test.ts`
+  - `apps/web/src/session-logic.ts`
+  - `apps/web/src/session-logic.test.ts`
+  - `apps/web/src/routes/__root.tsx`
+  - `apps/web/src/debug/userInputDebug.ts`
+  - `apps/web/src/components/debug/UserInputDebugPanel.tsx`
+  - `apps/web/src/components/chat/ComposerPendingUserInputPanel.tsx`
+- Runtime touchpoints:
+  - stale approval prompts after a provider session restart
+  - stale user-input prompts after a provider session restart
+  - `?debugUserInput=1`
+  - the floating "User Input Debug" panel
+  - expired-question toast messaging
+- If this breaks, look for:
+  - approval or user-input cards lingering after the underlying provider session has restarted
+  - answering an old question failing without removing the stale prompt from the UI
+  - the debug panel not appearing when `debugUserInput=1` is present
+  - missing or unclear error messaging when a question belongs to an earlier provider session
+- Verify with:
+  - `/home/claude/.bun/bin/bun fmt`
+  - `/home/claude/.bun/bin/bun lint`
+  - `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
+  - `/home/claude/.bun/bin/bun run test src/session-logic.test.ts src/provider/Layers/ProviderService.test.ts src/orchestration/Layers/ProviderCommandReactor.test.ts`
+  - load the app with `?debugUserInput=1` and confirm the debug panel appears
+  - reproduce a stale question/approval after a provider session restart and confirm the old prompt is cleared instead of remaining interactive
+- Rollback notes:
+  - revert the stale-request cleanup handling in the files above
+  - remove the debug panel mount and query-param store if the debug surface should be disabled entirely
+  - if only the debug UI is too invasive, keep the stale-request cleanup logic and remove the panel separately
+- Notes:
+  - 2026-03-16: Added the original stale pending user-input recovery flow after provider session restarts.
+  - 2026-03-24: Backfilled the ledger entry after confirming current `main` already includes both the stale cleanup behavior and the floating debug panel/query-param tooling that made PR #19 obsolete.
+
+## T3 Dev Runtime Branding
+
+- Status: active
+- First added: 2026-03-16
+- Last updated: 2026-03-24
+- Owners: T3 Code fork
+- Upstream impact: low
+- Areas: development hostname identity, dev PWA assets, host-variant styling, environment clarity
+- Why this exists: the fork runs a dedicated dev host at `t3-dev.claude.do`, and it needs visibly distinct branding so development sessions are hard to confuse with production, including dedicated PWA assets and a red "DEVELOP" marker in the sidebar surface.
+- Files:
+  - `ENHANCEMENTS.md`
+  - `apps/web/src/runtimeBranding.ts`
+  - `apps/web/src/runtimeBranding.test.ts`
+  - `apps/web/src/main.tsx`
+  - `apps/web/public/manifest-t3-dev.webmanifest`
+  - `apps/web/public/apple-touch-icon-dev.png`
+  - `apps/web/public/favicon-dev-16x16.png`
+  - `apps/web/public/favicon-dev-32x32.png`
+  - `apps/web/public/favicon-dev.ico`
+  - `apps/web/src/overrides.css`
+- Runtime touchpoints:
+  - `t3-dev.claude.do`
+  - dev PWA installs and icons
+  - `data-host-variant="t3-dev"`
+  - the visible "DEVELOP" badge styling in the sidebar surface
+- If this breaks, look for:
+  - the dev host reusing production favicon or manifest assets
+  - the dev surface no longer showing an obvious visual distinction from production
+  - upstream UI refactors breaking the host-variant badge selector in `apps/web/src/overrides.css`
+- Verify with:
+  - `/home/claude/.bun/bin/bun fmt`
+  - `/home/claude/.bun/bin/bun lint`
+  - `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
+  - open `t3-dev.claude.do` and confirm the dev-specific favicon/manifest assets load
+  - confirm the UI shows the red "DEVELOP" marker while production does not
+- Rollback notes:
+  - revert the runtime branding wiring and dev asset overrides listed above
+  - if only the badge styling is undesirable, remove the `data-host-variant="t3-dev"` overrides but keep the dev manifest/icon split
+- Notes:
+  - 2026-03-16: Added the initial dev host branding asset split.
+  - 2026-03-24: Folded the red indicator styling into the same runtime-branding entry because it is part of the host-specific visual identity, not a separate feature.
+
+## Fork Repository And Branch Safety Guardrails
+
+- Status: active
+- First added: 2026-03-20
+- Last updated: 2026-03-24
+- Owners: T3 Code fork
+- Upstream impact: none
+- Areas: GitHub repo targeting, production promotion safety, protected branch cleanup, operational policy
+- Why this exists: this fork must avoid mutating upstream accidentally, and `production` is a live deployment branch tied to `/srv/t3code/prod`, so the repo now carries explicit guardrails for allowed mutation targets, production PR source restrictions, and protected-branch deletion safety.
+- Files:
+  - `ENHANCEMENTS.md`
+  - `.gh-guard.conf`
+  - `.github/workflows/production-source-guard.yml`
+  - `AGENTS.md`
+  - `BRANCHES.md`
+  - `scripts/safe-delete-branch.sh`
+  - `/home/claude/T3CODE_OPERATIONS.md`
+- Runtime touchpoints:
+  - GitHub PRs targeting `production`
+  - local branch cleanup workflows
+  - the live `production` worktree at `/srv/t3code/prod`
+  - agent-driven GitHub mutation flows in this fork
+- If this breaks, look for:
+  - a PR to `production` being opened from a branch other than `main`
+  - tools or agents targeting `pingdotgg/t3code` instead of the fork
+  - accidental attempts to delete the local `production` branch during cleanup
+- Verify with:
+  - `/home/claude/.bun/bin/bun fmt`
+  - `/home/claude/.bun/bin/bun lint`
+  - `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
+  - inspect `.github/workflows/production-source-guard.yml` and confirm it rejects non-`main` PR sources for `production`
+  - run `scripts/safe-delete-branch.sh production` and confirm it refuses the deletion
+  - confirm `AGENTS.md` and `/home/claude/T3CODE_OPERATIONS.md` both describe `production` as protected infrastructure
+- Rollback notes:
+  - remove the guard workflow, branch policy docs, and delete helper if the fork stops using a protected `production` branch model
+  - if only the helper script becomes redundant, keep the GitHub workflow and repo policy docs
+- Notes:
+  - 2026-03-20: Added the fork-specific GitHub mutation guard policy and clarified upstream PR restrictions.
+  - 2026-03-24: Added explicit branch safety docs plus a local safe-delete helper after nearly treating `production` as cleanup inventory.
+
+## Composer Autocorrect Disabled
+
+- Status: active
+- First added: 2026-03-20
+- Last updated: 2026-03-24
+- Owners: T3 Code fork
+- Upstream impact: low
+- Areas: chat composer text entry, mobile keyboard behavior, contenteditable input ergonomics
+- Why this exists: coding prompts and shell commands are harmed by browser autocorrect and spellcheck behavior in the chat composer, so the fork disables those text-normalization features on the contenteditable prompt surface.
+- Files:
+  - `ENHANCEMENTS.md`
+  - `apps/web/src/components/ComposerPromptEditor.tsx`
+- Runtime touchpoints:
+  - the main chat composer
+  - mobile keyboard/autocorrect behavior
+  - spellcheck and autocorrect handling for code-like text input
+- If this breaks, look for:
+  - iOS or browser autocorrect mutating commands, paths, or code snippets as they are typed
+  - spellcheck markers appearing inside the composer
+  - contenteditable attributes drifting during upstream composer refactors
+- Verify with:
+  - `/home/claude/.bun/bin/bun fmt`
+  - `/home/claude/.bun/bin/bun lint`
+  - `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
+  - type command-like text into the composer on mobile and confirm autocorrect does not rewrite it
+  - inspect the rendered composer element and confirm spellcheck/autocorrect remain disabled
+- Rollback notes:
+  - revert the composer input attributes in `apps/web/src/components/ComposerPromptEditor.tsx`
+  - if upstream adds a different code-friendly composer strategy, prefer that and drop this local override
+- Notes:
+  - 2026-03-20: Disabled chat composer autocorrect and left the behavior in place through later composer refactors.
+
+## Compact Standalone PWA Open-With Suppression
+
+- Status: active
+- First added: 2026-03-20
+- Last updated: 2026-03-24
+- Owners: T3 Code fork
+- Upstream impact: low
+- Areas: installed PWA UX, compact touch layouts, header actions
+- Why this exists: desktop-oriented "Open" controls are not useful in compact standalone touch PWAs and take up valuable header space, so the fork hides the header open-in picker for those sessions while leaving it visible for regular browser tabs and desktop standalone installs.
+- Files:
+  - `ENHANCEMENTS.md`
+  - `apps/web/src/pwa.ts`
+  - `apps/web/src/pwa.test.ts`
+  - `apps/web/src/components/chat/OpenInPicker.tsx`
+  - any header components that consume `useShouldHideHeaderOpenInPicker`
+- Runtime touchpoints:
+  - installed iPhone/iPad/mobile PWAs
+  - compact touch viewport sessions
+  - header open-in controls
+- If this breaks, look for:
+  - desktop-oriented open-in controls reappearing in compact standalone touch sessions
+  - the controls disappearing unexpectedly in regular browser tabs or desktop standalone sessions
+  - regressions when display-mode or iOS standalone detection changes upstream
+- Verify with:
+  - `/home/claude/.bun/bin/bun fmt`
+  - `/home/claude/.bun/bin/bun lint`
+  - `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
+  - `/home/claude/.bun/bin/bun run test src/pwa.test.ts`
+  - confirm the open-in controls are hidden in a compact standalone touch session and remain visible in a regular desktop browser session
+- Rollback notes:
+  - remove `shouldHideHeaderOpenInPicker` and related call sites
+  - if only the viewport heuristic is wrong, keep the standalone detection and adjust the compact-touch condition instead of re-enabling the control everywhere
+- Notes:
+  - 2026-03-20: Hid the header open-in controls in compact standalone touch PWAs to reduce mobile PWA chrome clutter without affecting desktop sessions.
 
 ## Backfill Needed
 
