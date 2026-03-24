@@ -40,6 +40,7 @@
     "sync:phase0:smoke": "bun run --cwd apps/web sync:phase0:smoke",
     "sync:phase1:smoke": "node scripts/sync-phase-1-guardrails.mjs",
     "sync:phase2:smoke": "bun run --cwd apps/web sync:phase2:smoke",
+    "sync:phase3:smoke": "bun run --cwd apps/web sync:phase3:smoke",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "build:contracts": "turbo run build --filter=@t3tools/contracts",

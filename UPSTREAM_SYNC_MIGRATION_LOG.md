@@ -75,8 +75,11 @@ Instead:
 
 - Goal:
   - restore user-facing shell polish and dev/runtime presentation details
-- Planned automation:
-  - add a phase-specific browser smoke script after the phase passes manual review
+- Automated verification:
+  - `bun run sync:phase3:smoke`
+- Notes:
+  - Phase 3 currently verifies runtime-branding resolution via unit tests
+  - the visible dev badge and dev-host icon/manifest swap still require manual validation on `t3-dev.claude.do` because they depend on the authenticated hostname surface
 
 ### Phase 4: Settings cluster
 

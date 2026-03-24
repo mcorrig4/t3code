@@ -1279,11 +1279,16 @@ export default function Sidebar() {
     };
 
     return (
-      <Collapsible className="group/collapsible" open={shouldShowThreadPanel}>
-        <div className="group/project-header relative">
+      <Collapsible
+        className="group/collapsible"
+        data-project-group
+        open={shouldShowThreadPanel}
+      >
+        <div className="group/project-header relative" data-project-header>
           <SidebarMenuButton
             ref={isManualProjectSorting ? dragHandleProps?.setActivatorNodeRef : undefined}
             size="sm"
+            data-project-row
             className={`gap-2 px-2 py-1.5 text-left hover:bg-accent group-hover/project-header:bg-accent group-hover/project-header:text-sidebar-accent-foreground ${
               isManualProjectSorting ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
             }`}
@@ -1340,6 +1345,7 @@ export default function Sidebar() {
                   }
                   showOnHover
                   className="top-1 right-1 size-5 rounded-md p-0 text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
+                  data-project-action
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -1364,6 +1370,7 @@ export default function Sidebar() {
           <SidebarMenuSub
             ref={attachThreadListAutoAnimateRef}
             className="mx-1 my-0 w-full translate-x-0 gap-0.5 px-1.5 py-0"
+            data-project-threads
           >
             {renderedThreads.map((thread) => renderThreadRow(thread))}
 
@@ -1672,8 +1679,8 @@ export default function Sidebar() {
             </Alert>
           </SidebarGroup>
         ) : null}
-        <SidebarGroup className="px-2 py-2">
-          <div className="mb-1 flex items-center justify-between px-2">
+        <SidebarGroup className="px-2 py-2" data-projects-section>
+          <div className="mb-1 flex items-center justify-between px-2" data-projects-heading>
             <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
               Projects
             </span>
@@ -1787,7 +1794,7 @@ export default function Sidebar() {
               onDragEnd={handleProjectDragEnd}
               onDragCancel={handleProjectDragCancel}
             >
-              <SidebarMenu>
+              <SidebarMenu data-projects-list>
                 <SortableContext
                   items={sortedProjects.map((project) => project.id)}
                   strategy={verticalListSortingStrategy}
@@ -1801,7 +1808,7 @@ export default function Sidebar() {
               </SidebarMenu>
             </DndContext>
           ) : (
-            <SidebarMenu ref={attachProjectListAutoAnimateRef}>
+            <SidebarMenu ref={attachProjectListAutoAnimateRef} data-projects-list>
               {sortedProjects.map((project) => (
                 <SidebarMenuItem key={project.id} className="rounded-md">
                   {renderProjectItem(project, null)}
