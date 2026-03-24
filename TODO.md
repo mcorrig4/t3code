@@ -32,6 +32,9 @@
 - [ ] Add ability to rename project folders (local storage or synced)
 - [ ] Fix mobile zoom issue when adding a new project
 - [ ] Add in-app toast notifications that link back to finished threads or threads needing input
+- [ ] Do not send push notifications for events related to the chat thread currently open in the app
+- [ ] Add settings option to toggle whether notifications are suppressed for the currently open chat thread
+- [ ] Add settings options for choosing which event types generate notifications
 - [ ] Add sound effects for completed turns or needs-input states
 - [ ] Add settings toggles to control notification sound effects
 - [ ] Add git icon in front of repo name in header
