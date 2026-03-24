@@ -4,10 +4,29 @@
 
 - [ ] Submitting new messages should scroll to bottom
 - [ ] Only show last 10 threads for a given project
+- [ ] Show model icons per chat thread in sidebar
+- [ ] Add context usage percentage display below chat input box
+- [ ] Improve pending approval tool styling with better contrast for the tool call, monospace text, and a leading tool icon
 - [ ] Thread archiving
 - [ ] New projects should go on top
 - [ ] Projects should be sorted by latest thread update
+- [ ] Add settings option to show last message time beside chat threads instead of first message time
+- [ ] Sort chat threads by last message time when that setting is enabled
+- [ ] Persist each project's folded/collapsed sidebar state in local storage
+- [ ] Add ability to pin up to 3 chats under a project
+- [ ] Add button near the top of the chat window to jump to the previous user message
+- [ ] Add long-press on mobile to open the chat context menu
+- [ ] Alternatively add a three-dots button to open the chat context menu on mobile
+- [ ] Add sidebar toggle button into settings page so the sidebar can be opened there when it autohides on mobile
+- [ ] Add ability to rename project folders (local storage or synced)
+- [ ] Add in-app toast notifications that link back to finished threads or threads needing input
+- [ ] Add sound effects for completed turns or needs-input states
+- [ ] Add settings toggles to control notification sound effects
+- [ ] Add git icon in front of repo name in header
 
 ## Bigger things
 
 - [ ] Queueing messages
+- [ ] Plan how to create an archive chat feature, with an intermediate step of tracking archived threads in local storage and grouping/hiding them at the end of the thread list before a full archive implementation
+- [ ] Add plan usage tracker widget for 5h and weekly usage limits for Claude Code and Codex subscription plans
+- [ ] Add todo-list / task list viewer component
