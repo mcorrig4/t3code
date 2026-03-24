@@ -4,6 +4,7 @@ import babel from "@rolldown/plugin-babel";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { defineConfig } from "vite";
 import pkg from "./package.json" with { type: "json" };
+import { renderT3LoaderMarkup } from "./src/components/loading/renderT3LoaderMarkup";
 
 const port = Number(process.env.PORT ?? 5733);
 const sourcemapEnv = process.env.T3CODE_WEB_SOURCEMAP?.trim().toLowerCase();
@@ -25,8 +26,18 @@ const buildSourcemap =
       ? "hidden"
       : true;
 
+function t3BootShellPlugin() {
+  return {
+    name: "t3-boot-shell",
+    transformIndexHtml(html: string) {
+      return html.replace("<!-- app-boot-shell -->", renderT3LoaderMarkup());
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
+    t3BootShellPlugin(),
     tanstackRouter(),
     react(),
     babel({

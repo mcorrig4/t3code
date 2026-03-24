@@ -11,6 +11,8 @@ import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { Throttler } from "@tanstack/react-pacer";
 
 import { APP_DISPLAY_NAME } from "../branding";
+import { dismissBootShell } from "../bootShell";
+import { markBootReady } from "../bootState";
 import { Button } from "../components/ui/button";
 import { AnchoredToastProvider, ToastProvider, toastManager } from "../components/ui/toast";
 import { resolveAndPersistPreferredEditor } from "../editorPreferences";
@@ -38,28 +40,50 @@ export const Route = createRootRouteWithContext<{
 function RootRouteView() {
   if (!readNativeApi()) {
     return (
-      <div className="flex h-screen flex-col bg-background text-foreground">
-        <div className="flex flex-1 items-center justify-center">
-          <p className="text-sm text-muted-foreground">
-            Connecting to {APP_DISPLAY_NAME} server...
-          </p>
+      <>
+        <BootShellReadySignal nativeApiAvailable={false} />
+        <div className="flex h-screen flex-col bg-background text-foreground">
+          <div className="flex flex-1 items-center justify-center">
+            <p className="text-sm text-muted-foreground">
+              Connecting to {APP_DISPLAY_NAME} server...
+            </p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <ToastProvider>
-      <AnchoredToastProvider>
-        <EventRouter />
-        <DesktopProjectBootstrap />
-        <Outlet />
-      </AnchoredToastProvider>
-    </ToastProvider>
+    <>
+      <BootShellReadySignal nativeApiAvailable />
+      <ToastProvider>
+        <AnchoredToastProvider>
+          <EventRouter />
+          <DesktopProjectBootstrap />
+          <Outlet />
+        </AnchoredToastProvider>
+      </ToastProvider>
+    </>
   );
 }
 
+function BootShellReadySignal({ nativeApiAvailable }: { nativeApiAvailable: boolean }) {
+  const threadsHydrated = useStore((store) => store.threadsHydrated);
+
+  useEffect(() => {
+    if (!nativeApiAvailable || threadsHydrated) {
+      markBootReady();
+    }
+  }, [nativeApiAvailable, threadsHydrated]);
+
+  return null;
+}
+
 function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
+  useEffect(() => {
+    dismissBootShell({ immediate: true });
+  }, []);
+
   const message = errorMessage(error);
   const details = errorDetails(error);
 
