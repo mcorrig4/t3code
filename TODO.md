@@ -40,7 +40,7 @@
 - [ ] Add git icon in front of repo name in header
 - [ ] Fix question submit button resetting after press
 - [ ] Fix bug where old chat threads get stuck with a spinning send button after each message following a server restart
-- [ ] Fix terminal scrolling bug
+- [ ] Fix terminal scrolling bug on mobile where terminal panes cannot be scrolled on touch devices
 
 ## Bigger things
 
