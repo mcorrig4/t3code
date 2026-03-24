@@ -62,8 +62,14 @@ Instead:
 
 - Goal:
   - restore mobile and shell customizations on top of the upstream UI shell
-- Planned automation:
-  - add a phase-specific browser smoke script after the phase passes manual review
+- Automated verification:
+  - `bun run sync:phase2:smoke`
+- Script:
+  - [sync-phase-2-mobile-pwa.mjs](/home/claude/code/t3code/apps/web/e2e/sync-phase-2-mobile-pwa.mjs)
+- Notes:
+  - the Playwright phase smoke uses the local dev web endpoint by default because `t3-dev.claude.do` is behind Cloudflare Access and not reliably reachable from headless automation on the VPS
+  - Phase 2 automation currently verifies PWA shell metadata, root-scoped service worker registration, and the standalone PWA helper logic
+  - mobile composer focus-zoom behavior still needs manual validation in the authenticated dev app until we build a more reliable browser/component harness for this sync flow
 
 ### Phase 3: Chat UX and runtime branding details
 

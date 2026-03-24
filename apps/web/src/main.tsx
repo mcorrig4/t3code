@@ -5,8 +5,10 @@ import { createHashHistory, createBrowserHistory } from "@tanstack/react-router"
 
 import "@xterm/xterm/css/xterm.css";
 import "./index.css";
+import "./overrides.css";
 
 import { isElectron } from "./env";
+import { registerServiceWorker } from "./pwa";
 import { getRouter } from "./router";
 import { APP_DISPLAY_NAME } from "./branding";
 
@@ -16,6 +18,7 @@ const history = isElectron ? createHashHistory() : createBrowserHistory();
 const router = getRouter(history);
 
 document.title = APP_DISPLAY_NAME;
+void registerServiceWorker();
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

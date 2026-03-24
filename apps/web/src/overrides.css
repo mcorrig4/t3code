@@ -1,0 +1,44 @@
+/* Local, intentionally brittle UI tweaks that we want to keep isolated from upstream edits. */
+
+[data-mobile="true"][data-slot="sidebar"] {
+  max-width: 93vw;
+}
+
+@media (display-mode: standalone) and (max-width: 768px) {
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    pointer-events: none;
+    border-radius: 12px 12px 28px 28px;
+    box-shadow: 0 0 0 100vmax #07101f;
+  }
+
+  [data-mobile="true"][data-slot="sidebar"] [data-slot="sidebar-footer"] {
+    align-items: center;
+  }
+
+  [data-mobile="true"][data-slot="sidebar"]
+    [data-slot="sidebar-footer"]
+    [data-slot="sidebar-menu"] {
+    width: auto;
+  }
+
+  [data-mobile="true"][data-slot="sidebar"]
+    [data-slot="sidebar-footer"]
+    [data-slot="sidebar-menu-button"] {
+    justify-content: center;
+    border: 1px solid color-mix(in srgb, var(--foreground) 10%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-white) 4%, transparent);
+    text-align: center;
+  }
+
+  .dark
+    [data-mobile="true"][data-slot="sidebar"]
+    [data-slot="sidebar-footer"]
+    [data-slot="sidebar-menu-button"] {
+    border-color: color-mix(in srgb, var(--color-white) 12%, transparent);
+    box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-white) 6%, transparent);
+  }
+}

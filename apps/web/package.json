@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests",
     "sync:phase0:smoke": "bun run e2e/sync-phase-0-baseline.mjs",
+    "sync:phase2:smoke": "bun run e2e/sync-phase-2-mobile-pwa.mjs && vitest run src/pwa.test.ts",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "test:browser:install": "playwright install --with-deps chromium"
   },
