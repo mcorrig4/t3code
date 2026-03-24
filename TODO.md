@@ -39,6 +39,7 @@
 - [ ] Add settings toggles to control notification sound effects
 - [ ] Add git icon in front of repo name in header
 - [ ] Fix question submit button resetting after press
+- [ ] Fix bug where old chat threads get stuck with a spinning send button after each message following a server restart
 
 ## Bigger things
 
