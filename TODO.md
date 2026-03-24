@@ -5,6 +5,7 @@
 - [ ] Submitting new messages should scroll to bottom
 - [ ] Only show last 10 threads for a given project
 - [ ] Show model icons per chat thread in sidebar
+- [ ] Add a slight model-colored gradient fading toward the right edge of sidebar chats, grouped with the model icon thread styling
 - [ ] Add context usage percentage display below chat input box
 - [ ] Improve pending approval tool styling with better contrast for the tool call, monospace text, and a leading tool icon
 - [ ] Add a send button above the stop button while an agent chat is running, and remove send-on-Enter so Enter inserts a newline for steering messages
