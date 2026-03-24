@@ -23,6 +23,48 @@ If a tradeoff is required, choose correctness and robustness over short-term con
 
 Long term maintainability is a core priority. If you add new functionality, first check if there is shared logic that can be extracted to a separate module. Duplicate logic across multiple files is a code smell and should be avoided. Don't be afraid to change existing code. Don't take shortcuts by just adding local logic to solve a problem.
 
+- When adding a fork-specific feature, prefer modular patterns that minimize churn in the core codebase, such as sidecar modules, isolated adapters, thin integration seams, CSS overrides, feature-specific routes, or other self-contained layers that are easy to carry during upstream syncs.
+- Before changing core behavior broadly, first consider whether the same outcome can be achieved with a smaller, more modular extension point that keeps the upstream diff narrow and easier to reason about.
+- Every fork-specific enhancement, bug fix, behavior change, deployment customization, or operational deviation from upstream must be recorded in `ENHANCEMENTS.md`.
+- Keep `ENHANCEMENTS.md` detailed enough that we could theoretically recreate our fork-specific behavior from scratch, and use it as both a historical changelog and a sync-review ledger when comparing incoming upstream changes against our local modifications.
+- During upstream sync planning or conflict review, consult `ENHANCEMENTS.md` to decide whether a local change should stay, be dropped in favor of upstream, or be merged with an upstream alternative implementation.
+- Upstream syncs must treat `pingdotgg/t3code` as the source snapshot. Do not preserve fork behavior by cherry-picking old fork commits directly onto an already-drifted branch.
+- The correct upstream sync model is:
+  - start from the exact new `upstream/main` snapshot
+  - treat that snapshot as the new base
+  - reapply and adapt our fork-specific behavior on top of it feature-by-feature
+  - verify each retained fork feature against the new upstream architecture before merging it back into `main`
+- During upstream sync work, branches and old commit hashes are evidence only. The unit of decision-making is the individual feature, bug fix, customization, or operational deviation.
+- Avoid commit-cherry-picking as the default sync strategy. Prefer manual reapplication, targeted patch extraction, or small feature branches built from the fresh upstream snapshot so our retained changes match the new upstream structure cleanly.
+
+## Repository Boundaries
+
+- Default all GitHub collaboration actions to the user's fork: `mcorrig4/t3code`.
+- When the user says "open a PR", "create a PR", "open an issue", "create an issue", or similar without naming a repo, interpret that as an action within `mcorrig4/t3code`.
+- For pull requests, the default target is `mcorrig4/t3code` with the current branch merging into `main` on `mcorrig4/t3code`, unless the user explicitly asks for a different base branch.
+- Treat `pingdotgg/t3code` as strictly upstream-only. Never open PRs, issues, discussions, or other GitHub artifacts there from this environment. If the user wants something opened against `pingdotgg/t3code`, explain that this is not allowed here and they should open it themselves in the GitHub website.
+- If a request could affect a remote repository and the target is ambiguous, pause only long enough to confirm the owner/repo before publishing.
+
+## Fork Versioning
+
+- Keep the core semver in our fork aligned with the current upstream release version from `pingdotgg/t3code` so it is easy to see what upstream release line we are building on.
+- For fork releases, use the tag format `v<upstream-semver>-<upstream-sync-date>.<n>`.
+- The `upstream-sync-date` must be the `YYYYMMDD` date when `main` last absorbed changes from `upstream/main`, not the date we happen to cut a release tag later.
+- Example: if upstream is `0.0.13` and our last upstream sync landed on March 20, 2026, our fork release sequence should be `v0.0.13-20260320.1`, `v0.0.13-20260320.2`, `v0.0.13-20260320.3`, and so on.
+- Reset the fork counter whenever either the upstream semver base changes or a newer upstream sync date becomes the new baseline. Example: after syncing to upstream `0.0.14` on April 10, 2026, the next fork release becomes `v0.0.14-20260410.1`.
+- Before creating a new fork release tag, confirm both:
+  - the current upstream version from `upstream/main`
+  - the correct last-upstream-sync date for the `main` branch lineage being released
+- Do not create new plain semver tags like `v0.0.14` for fork releases. Use the dated fork-release format consistently.
+
+## Branch Safety
+
+- `production` is a protected runtime branch. NEVER delete it, rename it, or repurpose it.
+- The local `production` worktree at `/srv/t3code/prod` backs the live `t3.claude.do` deployment.
+- Treat `production` as operational infrastructure, not cleanup inventory.
+- Before deleting any local branch, check [BRANCHES.md](/home/claude/code/t3code/BRANCHES.md) and prefer `scripts/safe-delete-branch.sh` over raw `git branch -d`.
+- Before doing dev/prod deployment work, promotion work, or branch-merge flow changes, read `/home/claude/T3CODE_OPERATIONS.md` and follow it as the operational source of truth.
+
 ## Package Roles
 
 - `apps/server`: Node.js WebSocket server. Wraps Codex app-server (JSON-RPC over stdio), serves the React web app, and manages provider sessions.
