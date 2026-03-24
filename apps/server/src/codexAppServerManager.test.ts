@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { ApprovalRequestId, ThreadId } from "@t3tools/contracts";
@@ -16,6 +16,7 @@ import {
   readCodexAccountSnapshot,
   resolveCodexModelForAccount,
 } from "./codexAppServerManager";
+import { buildCodexAppServerArgs } from "./provider/codexAppServerOverrides";
 
 const asThreadId = (value: string): ThreadId => ThreadId.makeUnsafe(value);
 
@@ -408,6 +409,120 @@ describe("startSession", () => {
       versionCheck.mockRestore();
       manager.stopAll();
     }
+  });
+
+  it("passes config overrides to codex app-server launch args", async () => {
+    const workspaceDir = mkdtempSync(path.join(os.tmpdir(), "codex-launch-args-"));
+    const outputPath = path.join(workspaceDir, "spawn-args.json");
+    const codexBinaryPath = path.join(workspaceDir, "fake-codex");
+    const manager = new CodexAppServerManager();
+
+    writeFileSync(
+      codexBinaryPath,
+      `#!/usr/bin/env node
+const fs = require("node:fs");
+const outputPath = process.env.TEST_OUTPUT_PATH;
+const args = process.argv.slice(2);
+if (args[0] === "--version") {
+  process.stdout.write("codex-cli 0.115.0\\n");
+  process.exit(0);
+}
+if (args[0] !== "app-server") {
+  process.stderr.write("unexpected args\\n");
+  process.exit(1);
+}
+fs.writeFileSync(outputPath, JSON.stringify({ args, codexHome: process.env.CODEX_HOME ?? null }));
+const write = (message) => process.stdout.write(JSON.stringify(message) + "\\n");
+const handle = (line) => {
+  if (!line.trim()) return;
+  const message = JSON.parse(line);
+  if (message.method === "initialize") {
+    write({ id: message.id, result: {} });
+    return;
+  }
+  if (message.method === "model/list") {
+    write({ id: message.id, result: { data: [] } });
+    return;
+  }
+  if (message.method === "account/read") {
+    write({ id: message.id, result: { account: { type: "apiKey" } } });
+    return;
+  }
+  if (message.method === "thread/start") {
+    write({ id: message.id, result: { thread: { id: "provider-thread-1" } } });
+    return;
+  }
+};
+let buffer = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", (chunk) => {
+  buffer += chunk;
+  let newlineIndex = buffer.indexOf("\\n");
+  while (newlineIndex >= 0) {
+    const line = buffer.slice(0, newlineIndex);
+    buffer = buffer.slice(newlineIndex + 1);
+    handle(line);
+    newlineIndex = buffer.indexOf("\\n");
+  }
+});
+`,
+      { encoding: "utf8", mode: 0o755 },
+    );
+
+    const originalOutputPath = process.env.TEST_OUTPUT_PATH;
+    process.env.TEST_OUTPUT_PATH = outputPath;
+
+    try {
+      const session = await manager.startSession({
+        threadId: asThreadId("thread-launch"),
+        provider: "codex",
+        cwd: workspaceDir,
+        runtimeMode: "full-access",
+        providerOptions: {
+          codex: {
+            binaryPath: codexBinaryPath,
+            homePath: "/tmp/t3-codex-home",
+            configOverrides: ["notify=[]"],
+          },
+        },
+      });
+
+      expect(session.status).toBe("ready");
+      expect(JSON.parse(readFileSync(outputPath, "utf8"))).toEqual({
+        args: ["app-server", "-c", "notify=[]"],
+        codexHome: "/tmp/t3-codex-home",
+      });
+    } finally {
+      if (originalOutputPath === undefined) {
+        delete process.env.TEST_OUTPUT_PATH;
+      } else {
+        process.env.TEST_OUTPUT_PATH = originalOutputPath;
+      }
+      manager.stopAll();
+      rmSync(workspaceDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("buildCodexAppServerArgs", () => {
+  it("returns a bare app-server command when there are no overrides", () => {
+    expect(buildCodexAppServerArgs({})).toEqual(["app-server"]);
+  });
+
+  it("adds a single config override", () => {
+    expect(buildCodexAppServerArgs({ configOverrides: ["notify=[]"] })).toEqual([
+      "app-server",
+      "-c",
+      "notify=[]",
+    ]);
+  });
+
+  it("preserves multiple config overrides in order", () => {
+    expect(
+      buildCodexAppServerArgs({
+        configOverrides: ["notify=[]", 'model="gpt-5.4"'],
+      }),
+    ).toEqual(["app-server", "-c", "notify=[]", "-c", 'model="gpt-5.4"']);
   });
 });
 

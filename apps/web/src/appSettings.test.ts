@@ -105,6 +105,7 @@ describe("AppSettingsSchema", () => {
     ).toMatchObject({
       codexBinaryPath: "/usr/local/bin/codex",
       codexHomePath: "",
+      suppressCodexAppServerNotifications: false,
       defaultThreadEnvMode: "local",
       confirmThreadDelete: false,
       enableAssistantStreaming: false,
@@ -119,5 +120,25 @@ describe("AppSettingsSchema", () => {
 describe("push notification defaults", () => {
   it("defaults push notifications to disabled", () => {
     expect(DEFAULT_APP_SETTINGS.pushNotificationsEnabled).toBe(false);
+  });
+});
+
+describe("codex app-server notification suppression defaults", () => {
+  it("defaults suppression to disabled", () => {
+    expect(DEFAULT_APP_SETTINGS.suppressCodexAppServerNotifications).toBe(false);
+  });
+
+  it("preserves an explicitly enabled suppression setting", () => {
+    const decode = Schema.decodeSync(Schema.fromJsonString(AppSettingsSchema));
+
+    expect(
+      decode(
+        JSON.stringify({
+          suppressCodexAppServerNotifications: true,
+        }),
+      ),
+    ).toMatchObject({
+      suppressCodexAppServerNotifications: true,
+    });
   });
 });
