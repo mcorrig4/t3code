@@ -286,17 +286,12 @@ export function UserInputDebugPanel() {
       </div>
       <div className="max-h-[calc(45vh-2.5rem)] divide-y divide-white/8 overflow-y-auto">
         {renderedEntries.length === 0 ? (
-          <div className="px-2 py-3 text-xs text-white/55">
-            Waiting for breadcrumbs...
-          </div>
+          <div className="px-2 py-3 text-xs text-white/55">Waiting for breadcrumbs...</div>
         ) : (
           renderedEntries.map((entry) => {
             const detail = formatDetail(entry.detail);
             return (
-              <section
-                key={entry.id}
-                className={cn("px-2 py-1.5", toneClass(entry.level))}
-              >
+              <section key={entry.id} className={cn("px-2 py-1.5", toneClass(entry.level))}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-[11px] font-semibold tracking-[0.14em] uppercase">
