@@ -8,6 +8,7 @@
 - [ ] Add context usage percentage display below chat input box
 - [ ] Improve pending approval tool styling with better contrast for the tool call, monospace text, and a leading tool icon
 - [ ] Add a send button above the stop button while an agent chat is running, and remove send-on-Enter so Enter inserts a newline for steering messages
+- [ ] Add file upload/attach button, potentially opening a mobile PWA menu for choosing file or photo so iOS can trigger the appropriate picker
 - [ ] Thread archiving
 - [ ] New projects should go on top
 - [ ] Projects should be sorted by latest thread update
