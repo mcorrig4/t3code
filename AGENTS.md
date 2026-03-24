@@ -45,6 +45,13 @@ Long term maintainability is a core priority. If you add new functionality, firs
 - Treat `pingdotgg/t3code` as strictly upstream-only. Never open PRs, issues, discussions, or other GitHub artifacts there from this environment. If the user wants something opened against `pingdotgg/t3code`, explain that this is not allowed here and they should open it themselves in the GitHub website.
 - If a request could affect a remote repository and the target is ambiguous, pause only long enough to confirm the owner/repo before publishing.
 
+## Branch Safety
+
+- `production` is a protected runtime branch. NEVER delete it, rename it, or repurpose it.
+- The local `production` worktree at `/srv/t3code/prod` backs the live `t3.claude.do` deployment.
+- Treat `production` as operational infrastructure, not cleanup inventory.
+- Before deleting any local branch, check [BRANCHES.md](/home/claude/code/t3code/BRANCHES.md) and prefer `scripts/safe-delete-branch.sh` over raw `git branch -d`.
+
 ## Package Roles
 
 - `apps/server`: Node.js WebSocket server. Wraps Codex app-server (JSON-RPC over stdio), serves the React web app, and manages provider sessions.
