@@ -440,3 +440,32 @@ Copy this block for new entries:
 ## Backfill Needed
 
 Older fork-specific changes that predate this ledger should be added here over time as we touch them. Until then, use `git log upstream/main..main` as the catch-all diff against upstream.
+
+## Repo Root Project Favicon
+
+- Status: active
+- First added: 2026-03-23
+- Last updated: 2026-03-23
+- Owners: T3 Code fork
+- Upstream impact: low
+- Areas: project sidebar, monorepo root project detection, repo branding
+- Why this exists: the sidebar favicon detector only checks the selected project root for a fixed set of favicon paths and a few root-level source files, so the monorepo root at `t3code/` would miss the existing web app favicon under `apps/web/` and fall back to the generic folder glyph.
+- Files:
+  - `ENHANCEMENTS.md`
+  - `favicon.svg`
+- Runtime touchpoints:
+  - repo-root project rows in the chat sidebar when the project `cwd` is `/home/claude/code/t3code`
+  - server route `GET /api/project-favicon?cwd=...`
+- If this breaks, look for:
+  - the `t3code` project row showing the fallback folder-style icon instead of the T3 mark
+  - root-level favicon detection regressing after upstream changes to the sidebar or favicon route
+- Verify with:
+  - `/home/claude/.bun/bin/bun fmt`
+  - `/home/claude/.bun/bin/bun lint`
+  - `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
+  - refresh the app and confirm the sidebar project row for the repo root shows the T3 favicon
+- Rollback notes:
+  - remove `favicon.svg` from the repo root if repo-root branding is no longer desired
+  - if upstream adds native monorepo-aware favicon discovery, prefer that and drop this compatibility file if it becomes redundant
+- Notes:
+  - 2026-03-23: Added a repo-root `favicon.svg` by copying the existing T3 production logo so the current sidebar detector can resolve an icon for the monorepo root without widening the server search rules.
