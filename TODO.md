@@ -11,6 +11,11 @@
 - [ ] Add a send button above the stop button while an agent chat is running, and remove send-on-Enter so Enter inserts a newline for steering messages
 - [ ] Add file upload/attach button, potentially opening a mobile PWA menu for choosing file or photo so iOS can trigger the appropriate picker
 - [ ] Add option to paste large text as a file
+- [ ] Add voice recording button with waveform display while recording
+- [ ] Require the user to enter an OpenAI API key in settings before using voice transcription
+- [ ] Add settings toggle to choose basic Whisper transcription or a higher-quality transcript API
+- [ ] Add transcript prompt/context step that includes the project file tree and coding-prompt context to improve filename recognition
+- [ ] Explore a two-step voice pipeline where a second GPT-5.4 mini or nano pass rewrites transcript filenames using the project file tree
 - [ ] Thread archiving
 - [ ] New projects should go on top
 - [ ] Projects should be sorted by latest thread update
