@@ -125,6 +125,7 @@ function SettingsRouteView() {
 
   const codexBinaryPath = settings.codexBinaryPath;
   const codexHomePath = settings.codexHomePath;
+  const suppressCodexAppServerNotifications = settings.suppressCodexAppServerNotifications;
   const keybindingsConfigPath = serverConfigQuery.data?.keybindingsConfigPath ?? null;
   const availableEditors = serverConfigQuery.data?.availableEditors;
   const notificationsStatus = !pushNotifications.supported
@@ -387,6 +388,27 @@ function SettingsRouteView() {
                   </span>
                 </label>
 
+                <div className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      Suppress Codex native notifications
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Turns off Codex CLI notify hooks for T3-launched Codex sessions only. Your
+                      normal Codex CLI config still applies everywhere else.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={suppressCodexAppServerNotifications}
+                    onCheckedChange={(checked) =>
+                      updateSettings({
+                        suppressCodexAppServerNotifications: Boolean(checked),
+                      })
+                    }
+                    aria-label="Suppress Codex native notifications"
+                  />
+                </div>
+
                 <div className="flex flex-col gap-3 text-xs text-muted-foreground sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0 flex-1">
                     <p>Binary source</p>
@@ -402,6 +424,8 @@ function SettingsRouteView() {
                       updateSettings({
                         codexBinaryPath: defaults.codexBinaryPath,
                         codexHomePath: defaults.codexHomePath,
+                        suppressCodexAppServerNotifications:
+                          defaults.suppressCodexAppServerNotifications,
                       })
                     }
                   >

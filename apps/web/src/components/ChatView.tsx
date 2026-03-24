@@ -666,16 +666,25 @@ export default function ChatView({ threadId }: ChatViewProps) {
     return undefined;
   }, [draftModelOptions, selectedModel, selectedProvider]);
   const providerOptionsForDispatch = useMemo(() => {
-    if (!settings.codexBinaryPath && !settings.codexHomePath) {
+    if (
+      !settings.codexBinaryPath &&
+      !settings.codexHomePath &&
+      !settings.suppressCodexAppServerNotifications
+    ) {
       return undefined;
     }
     return {
       codex: {
         ...(settings.codexBinaryPath ? { binaryPath: settings.codexBinaryPath } : {}),
         ...(settings.codexHomePath ? { homePath: settings.codexHomePath } : {}),
+        ...(settings.suppressCodexAppServerNotifications ? { configOverrides: ["notify=[]"] } : {}),
       },
     };
-  }, [settings.codexBinaryPath, settings.codexHomePath]);
+  }, [
+    settings.codexBinaryPath,
+    settings.codexHomePath,
+    settings.suppressCodexAppServerNotifications,
+  ]);
   const selectedModelForPicker = selectedModel;
   const modelOptionsByProvider = useMemo(
     () => getCustomModelOptionsByProvider(settings),

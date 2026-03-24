@@ -56,6 +56,47 @@ Copy this block for new entries:
 
 ## Active Enhancements
 
+## Codex App-Server Notification Suppression Sidecar
+
+- Status: active
+- First added: 2026-03-24
+- Last updated: 2026-03-24
+- Owners: T3 Code fork
+- Upstream impact: low
+- Areas: Codex provider launch behavior, T3 settings UI, fork-only app-server overrides
+- Why this exists: users may want normal Codex CLI notify hooks everywhere else while suppressing those native notifications for Codex sessions launched inside T3, so T3 needs an app-server-only override that does not mutate `~/.codex/config.toml` or require an alternate `CODEX_HOME`.
+- Files:
+  - `ENHANCEMENTS.md`
+  - `apps/server/src/codexAppServerManager.ts`
+  - `apps/server/src/provider/codexAppServerOverrides.ts`
+  - `apps/server/src/codexAppServerManager.test.ts`
+  - `apps/web/src/appSettings.ts`
+  - `apps/web/src/appSettings.test.ts`
+  - `apps/web/src/components/ChatView.tsx`
+  - `apps/web/src/routes/_chat.settings.tsx`
+  - `packages/contracts/src/orchestration.ts`
+  - `packages/contracts/src/provider.test.ts`
+- Runtime touchpoints:
+  - T3 Codex session startup via `codex app-server`
+  - `/settings` Codex App Server controls
+  - provider start payloads carrying Codex-specific overrides
+- If this breaks, look for:
+  - enabling the T3 setting still allows native Codex completion notifications to fire during T3 Codex chats
+  - T3 starts using a different `CODEX_HOME` or ignores the user’s normal Codex config unexpectedly
+  - normal standalone `codex` CLI runs lose their global notify behavior
+- Verify with:
+  - `bun fmt`
+  - `bun lint`
+  - `bun typecheck`
+  - enable the setting in T3, start a fresh Codex chat, and confirm T3 launches `codex app-server -c notify=[]`
+  - run `codex` directly outside T3 and confirm global notify behavior is unchanged
+- Rollback notes:
+  - remove the `configOverrides` transport field and the T3 settings toggle
+  - stop adding `-c notify=[]` when launching `codex app-server`
+  - if upstream adds a first-class session-scoped notification suppression option, replace this sidecar with the upstream-compatible path
+- Notes:
+  - 2026-03-24: Added a browser-scoped T3 setting that maps to a Codex app-server-only `-c notify=[]` override, intentionally leaving `CODEX_HOME` and `~/.codex/config.toml` unchanged.
+
 ## Standardized Enhancement Ledger Filename
 
 - Status: active
@@ -115,7 +156,7 @@ Copy this block for new entries:
 
 - Status: active
 - First added: 2026-03-23
-- Last updated: 2026-03-23
+- Last updated: 2026-03-24
 - Owners: T3 Code fork
 - Upstream impact: low
 - Areas: mobile chat composer, iPhone Safari focus behavior, accessibility-sensitive zoom expectations
@@ -142,6 +183,43 @@ Copy this block for new entries:
   - if upstream lands a different iPhone-safe composer sizing strategy, replace this local override with that approach
 - Notes:
   - 2026-03-23: Raised the composer editor and placeholder to `16px` on mobile while keeping the existing `14px` sizing from `sm` and up to prevent iPhone Safari focus zoom without disabling general page zoom.
+
+## Standalone Mobile Rounded App Shell
+
+- Status: active
+- First added: 2026-03-24
+- Last updated: 2026-03-24
+- Owners: T3 Code fork
+- Upstream impact: low
+- Areas: mobile PWA shell styling, iPhone standalone presentation, fork-only CSS overrides
+- Why this exists: iPhone standalone sessions can reveal the page background around the app edges during keyboard and browser-chrome transitions, which looked abrupt in light mode; a rounded shell treatment makes that exposure feel intentional and visually softer without hiding functional UI near the bottom edge.
+- Files:
+  - `ENHANCEMENTS.md`
+  - `apps/web/src/components/BranchToolbar.tsx`
+  - `apps/web/src/components/ChatView.tsx`
+  - `apps/web/src/overrides.css`
+- Runtime touchpoints:
+  - `t3.claude.do`
+  - iPhone Home Screen installs
+  - standalone/mobile viewport rendering near the top and lower edges of the app shell
+  - the chat composer stack and branch/worktree toolbar while the keyboard is open
+- If this breaks, look for:
+  - the standalone app returns to square or overly sharp corners on mobile
+  - the `Local` / `Worktree` row or current branch becomes partially hidden when the keyboard opens
+  - clipped content or overlays appear near the bottom edge in standalone mode
+  - desktop or non-standalone layouts unexpectedly inherit the rounding
+- Verify with:
+  - `bun fmt`
+  - `bun lint`
+  - `bun typecheck`
+  - on an iPhone-installed PWA, open the keyboard and confirm the app surface shows subtle top-corner rounding, stronger bottom-corner rounding, and a fully visible branch/worktree row
+- Rollback notes:
+  - remove the standalone shell overlay and chat-stack spacing overrides from `apps/web/src/overrides.css`
+  - remove the standalone chat-input and branch-toolbar data hooks if the override is no longer needed
+  - if upstream lands a first-class mobile shell treatment, replace this isolated override with the upstream-compatible approach
+- Notes:
+  - 2026-03-24: Replaced the initial standalone/mobile `#root` clipping experiment with a non-clipping shell overlay, subtle top-corner rounding, stronger bottom-corner rounding, and extra standalone bottom spacing for the composer stack so the branch/worktree toolbar remains visible during iOS keyboard transitions.
+  - 2026-03-24: Temporarily rolled back the rounded-shell experiment to confirm the missing branch/worktree controls were caused by a separate issue, then restored the non-clipping visual shell overlay after confirming the control regression persisted without it.
 
 ## Root-Scoped PWA Install Behavior
 
@@ -294,7 +372,7 @@ Copy this block for new entries:
 - Owners: T3 Code fork
 - Upstream impact: low
 - Areas: mobile sidebar layout, shadcn sheet override behavior, small-screen navigation
-- Why this exists: the mobile sidebar should leave visible click-outside space instead of expanding edge-to-edge, even when the sidebar sheet sets `max-w-none`.
+- Why this exists: the mobile sidebar should leave visible click-outside space instead of expanding edge-to-edge, even when the sidebar sheet sets `max-w-none`, and the standalone/PWA footer actions should visually anchor to the same right edge as the rest of the mobile sheet controls.
 - Files:
   - `apps/web/src/components/ui/sidebar.tsx`
   - `apps/web/src/overrides.css`
@@ -305,19 +383,23 @@ Copy this block for new entries:
 - If this breaks, look for:
   - the mobile sidebar covers the full viewport width with no dismissible gutter
   - tapping outside the sidebar becomes harder or impossible on narrow screens
+  - the standalone mobile Settings action falls back to the far left of the footer instead of aligning with the sheet's right-side actions
   - upstream sidebar refactors remove the `data-mobile="true"` and `data-slot="sidebar"` hook points
 - Verify with:
   - `/home/claude/.bun/bin/bun fmt`
   - `/home/claude/.bun/bin/bun lint`
   - `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
   - open the web app in a mobile viewport and confirm the sidebar caps at `93vw` with visible click-outside space
+  - in a standalone/mobile PWA session, open the sidebar and confirm the footer Settings control sits against the right edge instead of the left
 - Rollback notes:
   - revert the mobile `max-width: 93vw` override in `apps/web/src/overrides.css`
+  - remove the standalone/mobile footer alignment override in `apps/web/src/overrides.css`
   - if needed, restore the previous `SheetPopup` sizing behavior in `apps/web/src/components/ui/sidebar.tsx`
 - Notes:
   - 2026-03-20: PR #13 merged `fix: leave click-outside space for mobile sidebar`.
   - 2026-03-23: Follow-up commit `Preserve mobile sidebar max width override` kept the fork override in place after upstream/sidebar changes.
   - 2026-03-24: Tightened the fork mobile sidebar width cap from `95vw` to `93vw` to leave a slightly larger dismissible gutter on small screens.
+  - 2026-03-24: Added a standalone/mobile-only footer override so the sidebar Settings control aligns to the right edge without changing shared sidebar component logic.
 
 ## Project Thread Spacing Polish
 
