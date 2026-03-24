@@ -24,6 +24,7 @@
 - [ ] Add sidebar toggle button into settings page so the sidebar can be opened there when it autohides on mobile
 - [ ] Add settings option to open the user debug panel, like toggling `?debugUserInput=1`
 - [ ] Add ability to rename project folders (local storage or synced)
+- [ ] Fix mobile zoom issue when adding a new project
 - [ ] Add in-app toast notifications that link back to finished threads or threads needing input
 - [ ] Add sound effects for completed turns or needs-input states
 - [ ] Add settings toggles to control notification sound effects
