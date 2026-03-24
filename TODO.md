@@ -19,6 +19,7 @@
 - [ ] Thread archiving
 - [ ] New projects should go on top
 - [ ] Projects should be sorted by latest thread update
+- [ ] Fix project ordering in sidebar persistence so saved sidebar state does not restore projects in the wrong order
 - [ ] Add settings option to show last message time beside chat threads instead of first message time
 - [ ] Sort chat threads by last message time when that setting is enabled
 - [ ] Persist each project's folded/collapsed sidebar state in local storage
