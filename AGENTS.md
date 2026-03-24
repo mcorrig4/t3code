@@ -7,11 +7,8 @@
 
 ## Bun Gotcha
 
-- In this environment, `bun` may not be on `PATH` even though Bun is installed at `/home/claude/.bun/bin/bun`.
-- If plain `bun ...` fails with `bun: command not found`, use the absolute binary path instead.
-- For `bun typecheck`, also prepend Bun to `PATH` so Turbo can find the package manager binary:
-  `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
-- `bun fmt` and `bun lint` can be run directly with `/home/claude/.bun/bin/bun fmt` and `/home/claude/.bun/bin/bun lint`.
+- `bun` should now be available on `PATH` in normal interactive and non-interactive shell sessions on this host.
+- If a tool runs in an unusual environment that bypasses shell init and `bun` is still missing, fall back to `/home/claude/.bun/bin/bun`.
 
 ## Project Snapshot
 
