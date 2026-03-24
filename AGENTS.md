@@ -51,6 +51,7 @@ Long term maintainability is a core priority. If you add new functionality, firs
 - The local `production` worktree at `/srv/t3code/prod` backs the live `t3.claude.do` deployment.
 - Treat `production` as operational infrastructure, not cleanup inventory.
 - Before deleting any local branch, check [BRANCHES.md](/home/claude/code/t3code/BRANCHES.md) and prefer `scripts/safe-delete-branch.sh` over raw `git branch -d`.
+- Before doing dev/prod deployment work, promotion work, or branch-merge flow changes, read `/home/claude/T3CODE_OPERATIONS.md` and follow it as the operational source of truth.
 
 ## Package Roles
 
