@@ -211,6 +211,7 @@ function SettingsRouteView() {
   const codexBinaryPath = settings.codexBinaryPath;
   const codexHomePath = settings.codexHomePath;
   const claudeBinaryPath = settings.claudeBinaryPath;
+  const suppressCodexAppServerNotifications = settings.suppressCodexAppServerNotifications;
   const keybindingsConfigPath = serverConfigQuery.data?.keybindingsConfigPath ?? null;
   const availableEditors = serverConfigQuery.data?.availableEditors;
 
@@ -248,7 +249,8 @@ function SettingsRouteView() {
   const isInstallSettingsDirty =
     settings.claudeBinaryPath !== defaults.claudeBinaryPath ||
     settings.codexBinaryPath !== defaults.codexBinaryPath ||
-    settings.codexHomePath !== defaults.codexHomePath;
+    settings.codexHomePath !== defaults.codexHomePath ||
+    settings.suppressCodexAppServerNotifications !== defaults.suppressCodexAppServerNotifications;
   const changedSettingLabels = [
     ...(theme !== "system" ? ["Theme"] : []),
     ...(settings.timestampFormat !== defaults.timestampFormat ? ["Time format"] : []),
@@ -815,6 +817,8 @@ function SettingsRouteView() {
                           claudeBinaryPath: defaults.claudeBinaryPath,
                           codexBinaryPath: defaults.codexBinaryPath,
                           codexHomePath: defaults.codexHomePath,
+                          suppressCodexAppServerNotifications:
+                            defaults.suppressCodexAppServerNotifications,
                         });
                         setOpenInstallProviders({
                           codex: false,
@@ -832,7 +836,9 @@ function SettingsRouteView() {
                       const isDirty =
                         providerSettings.provider === "codex"
                           ? settings.codexBinaryPath !== defaults.codexBinaryPath ||
-                            settings.codexHomePath !== defaults.codexHomePath
+                            settings.codexHomePath !== defaults.codexHomePath ||
+                            settings.suppressCodexAppServerNotifications !==
+                              defaults.suppressCodexAppServerNotifications
                           : settings.claudeBinaryPath !== defaults.claudeBinaryPath;
                       const binaryPathValue =
                         providerSettings.binaryPathKey === "claudeBinaryPath"
@@ -930,6 +936,32 @@ function SettingsRouteView() {
                                         </span>
                                       ) : null}
                                     </label>
+                                  ) : null}
+
+                                  {providerSettings.provider === "codex" ? (
+                                    <div className="rounded-lg border border-border/70 bg-background/70 px-3 py-3">
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0 flex-1">
+                                          <span className="block text-xs font-medium text-foreground">
+                                            Suppress Codex native notifications
+                                          </span>
+                                          <span className="mt-1 block text-xs text-muted-foreground">
+                                            Disable Codex CLI notify hooks for T3-launched Codex
+                                            app-server sessions only. Your normal Codex CLI config
+                                            still applies outside T3.
+                                          </span>
+                                        </div>
+                                        <Switch
+                                          checked={suppressCodexAppServerNotifications}
+                                          onCheckedChange={(checked) =>
+                                            updateSettings({
+                                              suppressCodexAppServerNotifications: Boolean(checked),
+                                            })
+                                          }
+                                          aria-label="Suppress Codex native notifications"
+                                        />
+                                      </div>
+                                    </div>
                                   ) : null}
                                 </div>
                               </div>

@@ -626,7 +626,21 @@ export default function ChatView({ threadId }: ChatViewProps) {
   );
   const selectedPromptEffort = composerProviderState.promptEffort;
   const selectedModelOptionsForDispatch = composerProviderState.modelOptionsForDispatch;
-  const providerOptionsForDispatch = useMemo(() => getProviderStartOptions(settings), [settings]);
+  const providerOptionsForDispatch = useMemo(() => {
+    const providerStartOptions = getProviderStartOptions(settings);
+    if (!settings.suppressCodexAppServerNotifications) {
+      return providerStartOptions;
+    }
+
+    const codexOptions = providerStartOptions?.codex;
+    return {
+      ...providerStartOptions,
+      codex: {
+        ...codexOptions,
+        configOverrides: ["notify=[]"],
+      },
+    };
+  }, [settings]);
   const selectedModelForPicker = selectedModel;
   const modelOptionsByProvider = useMemo(
     () => getCustomModelOptionsByProvider(settings),

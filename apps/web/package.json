@@ -13,6 +13,7 @@
     "sync:phase0:smoke": "node e2e/sync-phase-0-baseline.mjs",
     "sync:phase2:smoke": "node e2e/sync-phase-2-mobile-pwa.mjs && vitest run src/pwa.test.ts",
     "sync:phase3:smoke": "vitest run src/runtimeBranding.test.ts",
+    "sync:phase4:smoke": "node e2e/sync-phase-4-settings.mjs && vitest run src/appSettings.test.ts",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "test:browser:install": "playwright install --with-deps chromium"
   },

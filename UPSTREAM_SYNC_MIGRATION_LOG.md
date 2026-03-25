@@ -85,8 +85,13 @@ Instead:
 
 - Goal:
   - adapt fork settings behavior to the upstream settings architecture
-- Planned automation:
-  - add a phase-specific browser smoke script after the phase passes manual review
+- Automated verification:
+  - `bun run sync:phase4:smoke`
+- Script:
+  - [sync-phase-4-settings.mjs](/home/claude/code/t3code/apps/web/e2e/sync-phase-4-settings.mjs)
+- Notes:
+  - keep the upstream settings framework intact and layer fork-only Codex session overrides into the existing advanced install controls instead of reviving the older fork settings page wholesale
+  - web push settings stay coupled to the later push sidecar phase so the sync branch does not grow a half-wired settings surface before the server and client notification layers return
 
 ### Phase 5: Native TTS
 

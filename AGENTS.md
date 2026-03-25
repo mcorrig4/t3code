@@ -4,6 +4,14 @@
 
 - All of `bun fmt`, `bun lint`, and `bun typecheck` must pass before considering tasks completed.
 - NEVER run `bun test`. Always use `bun run test` (runs Vitest).
+- During multi-phase sync, merge, migration, or verification work, delegate routine verification to subagents by default:
+  - Playwright/browser smoke runs
+  - `bun fmt`
+  - `bun lint`
+  - `bun typecheck`
+  - phase script execution and result summaries
+- Keep the main thread focused on implementation decisions, merge reasoning, real findings, and user-facing manual checklists.
+- Only pull routine verification back into the main thread when a delegated run finds a real failure, needs direct debugging, or hits an environment/tooling blocker.
 
 ## Project Snapshot
 

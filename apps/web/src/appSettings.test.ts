@@ -240,6 +240,12 @@ describe("provider-indexed custom model settings", () => {
 });
 
 describe("AppSettingsSchema", () => {
+  it("defaults Codex app-server notification suppression to false", () => {
+    const decode = Schema.decodeSync(Schema.fromJsonString(AppSettingsSchema));
+
+    expect(decode(JSON.stringify({})).suppressCodexAppServerNotifications).toBe(false);
+  });
+
   it("fills decoding defaults for persisted settings that predate newer keys", () => {
     const decode = Schema.decodeSync(Schema.fromJsonString(AppSettingsSchema));
 
@@ -254,6 +260,7 @@ describe("AppSettingsSchema", () => {
       claudeBinaryPath: "",
       codexBinaryPath: "/usr/local/bin/codex",
       codexHomePath: "",
+      suppressCodexAppServerNotifications: false,
       defaultThreadEnvMode: "local",
       confirmThreadDelete: false,
       enableAssistantStreaming: false,
