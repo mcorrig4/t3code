@@ -1,4 +1,4 @@
-const APP_SHELL_CACHE = "t3code-app-shell-v3";
+const APP_SHELL_CACHE = "t3code-app-shell-v4";
 const APP_SHELL_URL = "/";
 const APP_SHELL_ASSETS = [
   APP_SHELL_URL,
@@ -165,9 +165,11 @@ self.addEventListener("notificationclick", (event) => {
         }
 
         await client.focus();
-        if ("navigate" in client) {
-          await client.navigate(targetUrl.href);
-        }
+        client.postMessage({
+          type: "notification-navigate",
+          url: targetUrl.pathname + targetUrl.search,
+          threadId: event.notification?.data?.threadId ?? null,
+        });
         return;
       }
 

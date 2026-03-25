@@ -20,6 +20,7 @@ import { UserInputDebugSidecar } from "../debug/UserInputDebugSidecar";
 import { resolveAndPersistPreferredEditor } from "../editorPreferences";
 import { serverConfigQueryOptions, serverQueryKeys } from "../lib/serverReactQuery";
 import { readNativeApi } from "../nativeApi";
+import { useNotificationNavigation } from "../notifications/useNotificationNavigation";
 import { clearPromotedDraftThreads, useComposerDraftStore } from "../composerDraftStore";
 import { useStore } from "../store";
 import { useTerminalStateStore } from "../terminalStateStore";
@@ -40,6 +41,8 @@ export const Route = createRootRouteWithContext<{
 });
 
 function RootRouteView() {
+  useNotificationNavigation();
+
   if (!readNativeApi()) {
     return (
       <>
