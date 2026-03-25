@@ -230,7 +230,7 @@ Copy this block for new entries:
 
 - Status: active
 - First added: 2026-03-16
-- Last updated: 2026-03-25
+- Last updated: 2026-03-26
 - Owners: T3 Code fork
 - Upstream impact: medium
 - Areas: web app install metadata, iPhone Home Screen behavior, offline/app-shell navigation
@@ -263,6 +263,37 @@ Copy this block for new entries:
 - Notes:
   - 2026-03-16: Added root-scoped manifest metadata, iOS standalone meta tags, and a minimal service worker registration path.
   - 2026-03-25: Aligned the dev-host manifest `background_color` and `theme_color` with the shared dark boot-shell background (`#07101f`) and updated runtime branding to keep `meta[name="theme-color"]` in sync when the dev manifest is active, reducing the bright white pre-splash flash before the loader appears.
+  - 2026-03-25: Tightened the boot-shell exit timing from `520ms` to `320ms` for a faster handoff after the minimum boot delay, while keeping `APP_BOOT_MIN_DURATION_MS` at `800ms`. Also switched the iOS standalone status bar meta to `black-translucent` so the installed app's chrome blends with the dark boot background instead of flashing a light bar.
+
+## Root Repo Check Exclusion For Nested Claude Worktrees
+
+- Status: active
+- First added: 2026-03-25
+- Last updated: 2026-03-25
+- Owners: T3 Code fork
+- Upstream impact: none
+- Areas: root developer tooling, nested local worktree hygiene
+- Why this exists: root-level `bun fmt` and `bun lint` were recursively picking up duplicate files under `./.claude/worktrees`, creating duplicate diagnostics when running checks from the main repository root.
+- Files:
+  - `.gitignore`
+  - `.eslintignore`
+- Runtime touchpoints:
+  - `bun fmt` from the main repo root
+  - `bun lint` from the main repo root
+  - nested Claude-managed worktrees under `./.claude/worktrees`
+- If this breaks, look for:
+  - root `bun fmt` or `bun lint` starts reporting duplicate findings from `.claude/worktrees`
+  - a nested worktree stops linting or formatting its own files when commands are run from inside that worktree root
+- Verify with:
+  - `bun fmt`
+  - `bun lint`
+  - `bun typecheck`
+  - from `/home/claude/code/t3code`, confirm `bun lint` no longer reports duplicated warnings under `.claude/worktrees`
+  - from a nested Claude worktree root, confirm `bun lint` still checks that worktree normally
+- Rollback notes:
+  - remove `/.claude/worktrees/` from `.gitignore` and `.eslintignore`
+- Notes:
+  - 2026-03-25: Added a root-relative ignore for `./.claude/worktrees/` so repository-root formatter/linter runs skip nested cloned worktrees, while direct runs inside a nested worktree still operate on that worktree because the ignore stays relative to the current repo root.
 
 ## Web Push Notifications Sidecar
 
@@ -585,6 +616,7 @@ Copy this block for new entries:
   - 2026-03-25: Refactored the debug UI into a dedicated `UserInputDebugSidecar` mount so breadcrumb capture, the floating panel, and global browser error listeners can stay isolated from the rest of the root shell while still accepting explicit user-input event breadcrumbs from `ChatView` and domain-event routing.
   - 2026-03-25: Added a Settings -> Advanced -> Diagnostics control that opens the same sidecar-backed panel without requiring the `debugUserInput` query param.
   - 2026-03-25: Moved the Diagnostics settings control into `ForkSettingsSection` so the upstream settings page only mounts the fork-owned sidecar section instead of hosting a dedicated debug row directly.
+  - 2026-03-26: Added Codex session-override breadcrumbs in `ChatView` so the sidecar records the exact `providerOptions` payload, suppression flag, runtime mode, and interaction mode sent with each `thread.turn.start`, making it easier to verify whether `notify=[]` is present before debugging server launch behavior.
 
 ## T3 Dev Runtime Branding
 
