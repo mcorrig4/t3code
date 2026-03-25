@@ -189,7 +189,7 @@ Copy this block for new entries:
 
 - Status: active
 - First added: 2026-03-24
-- Last updated: 2026-03-25
+- Last updated: 2026-03-25 (squircle corners + bottom radius tuning)
 - Owners: T3 Code fork
 - Upstream impact: low
 - Areas: mobile PWA shell styling, iPhone standalone presentation, fork-only CSS overrides
@@ -213,7 +213,8 @@ Copy this block for new entries:
   - `bun fmt`
   - `bun lint`
   - `bun typecheck`
-  - on an iPhone-installed PWA, open the keyboard and confirm the app surface shows subtle top-corner rounding, stronger bottom-corner rounding, and a fully visible branch/worktree row
+  - on an iPhone-installed PWA, open the keyboard and confirm the app surface shows subtle top-corner rounding, slightly reduced bottom-corner rounding (22px squircle), and a fully visible branch/worktree row
+  - in a browser with `corner-shape` support (Chrome 138+, Safari TP), verify corners use smooth superellipse curves rather than circular arcs
 - Rollback notes:
   - remove the standalone shell overlay and chat-stack spacing overrides from `apps/web/src/overrides.css`
   - remove the standalone chat-input and branch-toolbar data hooks if the override is no longer needed
@@ -222,6 +223,7 @@ Copy this block for new entries:
   - 2026-03-24: Replaced the initial standalone/mobile `#root` clipping experiment with a non-clipping shell overlay, subtle top-corner rounding, stronger bottom-corner rounding, and extra standalone bottom spacing for the composer stack so the branch/worktree toolbar remains visible during iOS keyboard transitions.
   - 2026-03-24: Temporarily rolled back the rounded-shell experiment to confirm the missing branch/worktree controls were caused by a separate issue, then restored the non-clipping visual shell overlay after confirming the control regression persisted without it.
   - 2026-03-25: Added a second standalone-only overlay layer in `apps/web/src/overrides.css` that masks to the bottom safe-area band and combines light and dark gradients plus inset highlights so the lower shell edge reads like an iOS-style glass shimmer instead of a flat border.
+  - 2026-03-25: Added `corner-shape: squircle` to the app bezel (`body::before`), glass-edge border (`html::after`), sheet backdrop, and mobile sidebar so all rounded corners use iOS-style superellipse curves instead of circular arcs. Reduced the bottom corner radius from `28px` to `22px` on all four elements to better match the iOS keyboard's top-edge radius when the keyboard is open. This is a progressive enhancement — browsers without `corner-shape` support render standard circular `border-radius` as before.
 
 ## Root-Scoped PWA Install Behavior
 
