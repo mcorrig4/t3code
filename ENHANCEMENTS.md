@@ -731,3 +731,4 @@ Older fork-specific changes that predate this ledger should be added here over t
   - if upstream adds native monorepo-aware favicon discovery, prefer that and drop this compatibility file if it becomes redundant
 - Notes:
   - 2026-03-23: Added a repo-root `favicon.svg` by copying the existing T3 production logo so the current sidebar detector can resolve an icon for the monorepo root without widening the server search rules.
+  - 2026-03-25: Restored `favicon.svg` at repo root after it was lost (recovered from git history via commit `76af7b5b`).

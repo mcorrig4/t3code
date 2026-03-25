@@ -187,4 +187,27 @@
     border-color: color-mix(in srgb, var(--color-white) 12%, transparent);
     box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-white) 6%, transparent);
   }
+
+  /* Stack chat title and project name vertically to give the title more room */
+  [data-slot="chat-title-group"] {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+  }
+
+  [data-slot="chat-title-group"] > h2 {
+    width: 100%;
+  }
+
+  [data-slot="chat-title-group"] > [data-slot="badge"] {
+    border: none;
+    background: transparent;
+    padding: 0;
+    height: auto;
+    min-height: 0;
+    min-width: 0;
+    font-size: 0.55rem;
+    line-height: 1;
+    opacity: 0.5;
+  }
 }
