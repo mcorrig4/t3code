@@ -44,6 +44,14 @@ Long term maintainability is a core priority. If you add new functionality, firs
   - verify each retained fork feature against the new upstream architecture before merging it back into `main`
 - During upstream sync work, branches and old commit hashes are evidence only. The unit of decision-making is the individual feature, bug fix, customization, or operational deviation.
 - Avoid commit-cherry-picking as the default sync strategy. Prefer manual reapplication, targeted patch extraction, or small feature branches built from the fresh upstream snapshot so our retained changes match the new upstream structure cleanly.
+- For fork-only settings UI, prefer a single injected sidecar section/component over scattering fork controls throughout the upstream settings page.
+- By default, fork-only settings should still persist through the canonical app settings store in `apps/web/src/appSettings.ts` so reset logic, migrations, tests, and runtime consumers stay unified.
+- Only introduce a separate local-storage key for fork settings when the data is truly sidecar-only and should not participate in normal app settings semantics, defaults, restores, or cross-feature coordination.
+- Preferred pattern:
+  - keep one canonical settings schema/store
+  - render fork-owned settings through a dedicated sidecar entry point such as `ForkSettingsSection`
+  - keep upstream-owned settings layout intact wherever practical
+  - colocate fork-only runtime wiring behind small helpers/adapters instead of expanding upstream settings codepaths broadly
 
 ## Repository Boundaries
 

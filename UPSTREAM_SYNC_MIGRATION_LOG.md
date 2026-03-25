@@ -92,6 +92,8 @@ Instead:
 - Notes:
   - keep the upstream settings framework intact and layer fork-only Codex session overrides into the existing advanced install controls instead of reviving the older fork settings page wholesale
   - web push settings stay coupled to the later push sidecar phase so the sync branch does not grow a half-wired settings surface before the server and client notification layers return
+  - future fork-only settings should move toward a single injected sidecar section/component while still sharing the canonical app settings store by default
+  - see [FORK_SETTINGS_SIDECAR_PLAN.md](/home/claude/code/t3code/FORK_SETTINGS_SIDECAR_PLAN.md)
 
 ### Phase 5: Native TTS
 
