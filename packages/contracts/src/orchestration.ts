@@ -47,6 +47,7 @@ export const DEFAULT_PROVIDER_KIND: ProviderKind = "codex";
 export const CodexProviderStartOptions = Schema.Struct({
   binaryPath: Schema.optional(TrimmedNonEmptyString),
   homePath: Schema.optional(TrimmedNonEmptyString),
+  configOverrides: Schema.optional(Schema.Array(TrimmedNonEmptyString)),
 });
 
 export const ClaudeProviderStartOptions = Schema.Struct({

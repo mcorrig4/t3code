@@ -60,7 +60,7 @@ Copy this block for new entries:
 
 - Status: active
 - First added: 2026-03-24
-- Last updated: 2026-03-24
+- Last updated: 2026-03-25
 - Owners: T3 Code fork
 - Upstream impact: low
 - Areas: Codex provider launch behavior, T3 settings UI, fork-only app-server overrides
@@ -97,6 +97,7 @@ Copy this block for new entries:
 - Notes:
   - 2026-03-24: Added a browser-scoped T3 setting that maps to a Codex app-server-only `-c notify=[]` override, intentionally leaving `CODEX_HOME` and `~/.codex/config.toml` unchanged.
   - 2026-03-25: Moved the fork-owned settings control into `ForkSettingsSection` so the upstream settings route only mounts the sidecar seam instead of owning the Codex-specific UI directly.
+  - 2026-03-25: Fixed a regression where the web app reintroduced `codex.configOverrides`, but the shared provider-options schema and Codex launch path still ignored that field, so `notify=[]` never reached the spawned `codex app-server` process.
 
 ## Standardized Enhancement Ledger Filename
 
@@ -229,7 +230,7 @@ Copy this block for new entries:
 
 - Status: active
 - First added: 2026-03-16
-- Last updated: 2026-03-16
+- Last updated: 2026-03-25
 - Owners: T3 Code fork
 - Upstream impact: medium
 - Areas: web app install metadata, iPhone Home Screen behavior, offline/app-shell navigation
@@ -261,6 +262,7 @@ Copy this block for new entries:
   - remove and re-add the Home Screen install on iPhone so Safari drops cached install metadata
 - Notes:
   - 2026-03-16: Added root-scoped manifest metadata, iOS standalone meta tags, and a minimal service worker registration path.
+  - 2026-03-25: Aligned the dev-host manifest `background_color` and `theme_color` with the shared dark boot-shell background (`#07101f`) and updated runtime branding to keep `meta[name="theme-color"]` in sync when the dev manifest is active, reducing the bright white pre-splash flash before the loader appears.
 
 ## Web Push Notifications Sidecar
 
