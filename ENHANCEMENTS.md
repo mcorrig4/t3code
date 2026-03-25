@@ -746,7 +746,7 @@ Older fork-specific changes that predate this ledger should be added here over t
 - Why this exists: upstream copy and revert buttons on user messages (and copy buttons on code blocks) only appear on hover, which is inaccessible on mobile/touch devices. This enhancement makes them always visible on small screens and touch-only devices, and left-aligns the user message action buttons.
 - Files:
   - `apps/web/src/components/chat/MessagesTimeline.tsx`
-  - `apps/web/src/index.css`
+  - `apps/web/src/overrides.css`
 - Runtime touchpoints:
   - user message copy/revert button row in the chat timeline
   - code block copy button in assistant markdown messages
@@ -759,7 +759,7 @@ Older fork-specific changes that predate this ledger should be added here over t
   - on desktop, buttons should still appear only on hover
 - Rollback notes:
   - in `MessagesTimeline.tsx`, remove `max-sm:opacity-100` from the action button container div
-  - in `index.css`, remove the `@media (hover: none)` block for `.chat-markdown-copy-button`
+  - in `overrides.css`, remove the `@media (hover: none)` block for `.chat-markdown-copy-button`
   - in `MessagesTimeline.tsx`, change `justify-start` back to `justify-end` on the action button container
 - Notes:
   - 2026-03-25: Initial implementation. User message buttons use Tailwind `max-sm:opacity-100` (width-based). Code block buttons use `@media (hover: none)` (capability-based, catches tablets too). Action buttons left-aligned.

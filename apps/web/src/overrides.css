@@ -215,3 +215,11 @@
     opacity: 0.5;
   }
 }
+
+/* Always show copy buttons on touch / mobile devices */
+@media (hover: none) {
+  .chat-markdown .chat-markdown-copy-button {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}

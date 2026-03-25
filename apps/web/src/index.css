@@ -377,14 +377,6 @@ label:has(> select#reasoning-effort) select {
   border-color: color-mix(in srgb, var(--border) 70%, var(--foreground));
 }
 
-/* Always show copy buttons on touch / mobile devices */
-@media (hover: none) {
-  .chat-markdown .chat-markdown-copy-button {
-    opacity: 1;
-    pointer-events: auto;
-  }
-}
-
 .chat-markdown .chat-markdown-shiki .shiki {
   background: color-mix(in srgb, var(--muted) 78%, var(--background)) !important;
 }
