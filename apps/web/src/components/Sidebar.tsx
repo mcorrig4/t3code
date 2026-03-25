@@ -1279,11 +1279,7 @@ export default function Sidebar() {
     };
 
     return (
-      <Collapsible
-        className="group/collapsible"
-        data-project-group
-        open={shouldShowThreadPanel}
-      >
+      <Collapsible className="group/collapsible" data-project-group open={shouldShowThreadPanel}>
         <div className="group/project-header relative" data-project-header>
           <SidebarMenuButton
             ref={isManualProjectSorting ? dragHandleProps?.setActivatorNodeRef : undefined}
