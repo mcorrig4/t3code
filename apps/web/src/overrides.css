@@ -2,6 +2,7 @@
 
 [data-mobile="true"][data-slot="sidebar"] {
   max-width: 93vw;
+  border-radius: 12px 12px 28px 12px;
 }
 
 [data-projects-heading] {
@@ -122,6 +123,42 @@
     pointer-events: none;
     border-radius: 12px 12px 28px 28px;
     box-shadow: 0 0 0 100vmax #07101f;
+  }
+
+  /* Dual-layer glass-edge border matching iOS screen bezel */
+  html::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 42;
+    pointer-events: none;
+    border-radius: 12px 12px 28px 28px;
+    box-shadow:
+      inset 0 0 0 0.5px color-mix(in srgb, var(--color-white) 45%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--color-black) 15%, transparent);
+  }
+
+  html.dark::after {
+    box-shadow:
+      inset 0 0 0 0.5px color-mix(in srgb, var(--color-white) 25%, transparent),
+      inset 0 0 0 1px color-mix(in srgb, var(--color-black) 40%, transparent);
+  }
+
+  [data-slot="sheet-backdrop"] {
+    border-radius: 12px 12px 28px 28px;
+  }
+
+  /* Glass-edge border on sidebar right edge */
+  [data-mobile="true"][data-slot="sidebar"] {
+    box-shadow:
+      inset -0.5px 0 0 0 color-mix(in srgb, var(--color-white) 45%, transparent),
+      inset -1px 0 0 0 color-mix(in srgb, var(--color-black) 15%, transparent);
+  }
+
+  .dark [data-mobile="true"][data-slot="sidebar"] {
+    box-shadow:
+      inset -0.5px 0 0 0 color-mix(in srgb, var(--color-white) 25%, transparent),
+      inset -1px 0 0 0 color-mix(in srgb, var(--color-black) 40%, transparent);
   }
 
   [data-mobile="true"][data-slot="sidebar"] [data-slot="sidebar-footer"] {

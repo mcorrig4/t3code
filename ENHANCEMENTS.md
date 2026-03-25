@@ -189,7 +189,7 @@ Copy this block for new entries:
 
 - Status: active
 - First added: 2026-03-24
-- Last updated: 2026-03-24
+- Last updated: 2026-03-25
 - Owners: T3 Code fork
 - Upstream impact: low
 - Areas: mobile PWA shell styling, iPhone standalone presentation, fork-only CSS overrides
@@ -221,6 +221,7 @@ Copy this block for new entries:
 - Notes:
   - 2026-03-24: Replaced the initial standalone/mobile `#root` clipping experiment with a non-clipping shell overlay, subtle top-corner rounding, stronger bottom-corner rounding, and extra standalone bottom spacing for the composer stack so the branch/worktree toolbar remains visible during iOS keyboard transitions.
   - 2026-03-24: Temporarily rolled back the rounded-shell experiment to confirm the missing branch/worktree controls were caused by a separate issue, then restored the non-clipping visual shell overlay after confirming the control regression persisted without it.
+  - 2026-03-25: Added a second standalone-only overlay layer in `apps/web/src/overrides.css` that masks to the bottom safe-area band and combines light and dark gradients plus inset highlights so the lower shell edge reads like an iOS-style glass shimmer instead of a flat border.
 
 ## Root-Scoped PWA Install Behavior
 
