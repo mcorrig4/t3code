@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { decodeDeleteSubscriptionBody, decodePutSubscriptionBody } from "./http.ts";
+import {
+  decodeDeleteSubscriptionBody,
+  decodePutSubscriptionBody,
+  isAllowedOrigin,
+  resolveRequestOrigin,
+  validateWebPushOrigin,
+} from "./http.ts";
 
 describe("web push request decoding", () => {
   it("accepts parsed subscription payloads from the browser", () => {
@@ -40,5 +46,37 @@ describe("web push request decoding", () => {
         endpoint: "https://web.push.apple.com/example-endpoint",
       },
     });
+  });
+});
+
+describe("web push origin validation", () => {
+  it("accepts same-origin forwarded requests", () => {
+    const request = {
+      headers: {
+        origin: "https://t3-dev.claude.do",
+        "x-forwarded-host": "t3-dev.claude.do",
+        "x-forwarded-proto": "https",
+      },
+    } as never;
+
+    expect(resolveRequestOrigin(request)).toBe("https://t3-dev.claude.do");
+    expect(isAllowedOrigin(request)).toBe(true);
+    expect(validateWebPushOrigin({ request, origin: resolveRequestOrigin(request) })).toBeNull();
+  });
+
+  it("rejects other claude.do subdomains when they are not the active request origin", () => {
+    const request = {
+      headers: {
+        origin: "https://other-dev.claude.do",
+        "x-forwarded-host": "t3-dev.claude.do",
+        "x-forwarded-proto": "https",
+      },
+    } as never;
+
+    expect(resolveRequestOrigin(request)).toBe("https://t3-dev.claude.do");
+    expect(isAllowedOrigin(request)).toBe(false);
+    expect(validateWebPushOrigin({ request, origin: resolveRequestOrigin(request) })).toBe(
+      "Forbidden origin",
+    );
   });
 });

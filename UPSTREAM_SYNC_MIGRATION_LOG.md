@@ -129,7 +129,7 @@ Instead:
   - [sync-phase-7-web-push.mjs](/home/claude/code/t3code/apps/web/e2e/sync-phase-7-web-push.mjs)
 - Notes:
   - keep this separate from the runtime/debug phase because it is its own full-stack sidecar spanning settings, service worker, client registration, server layers, persistence, and runtime config
-  - the current phase smoke validates the fork settings-sidecar mount, `/api/web-push/config`, and safe disabled-server behavior on the local dev web endpoint
+  - the current phase smoke validates the fork settings-sidecar mount, the notifications status card, `/api/web-push/config`, rejection of visible JSON/HTML parse failures, and safe disabled-server behavior on the local dev web endpoint
 
 ### Phase 8: Final audit and promotion readiness
 

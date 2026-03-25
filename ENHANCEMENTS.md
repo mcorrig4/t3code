@@ -338,7 +338,7 @@ Copy this block for new entries:
 
 - Status: active
 - First added: 2026-03-20
-- Last updated: 2026-03-23
+- Last updated: 2026-03-25
 - Owners: T3 Code fork
 - Upstream impact: none
 - Areas: production runtime configuration, web push delivery, VPS deployment state
@@ -522,6 +522,7 @@ Copy this block for new entries:
 - Notes:
   - 2026-03-16: Added the first native-browser TTS implementation for completed assistant messages with markdown sanitization and one-message-at-a-time playback.
   - 2026-03-23: Moved the TTS control into the assistant metadata row, kept the play button on the left, right-aligned the timestamp, and added an in-playback speed selector from `0.8x` to `2.0x` in `0.1` steps.
+  - 2026-03-25: Added a `speechSynthesis` event-listener fallback path so playback state still settles correctly on browsers that do not fire the preferred `onend` / `onerror` callbacks consistently.
 
 ## Stale Pending User-Input Recovery And Debugging
 

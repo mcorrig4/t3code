@@ -141,45 +141,6 @@ export function usePushNotifications() {
     }
   }, [refreshSubscriptionState, supported, updateSettings]);
 
-  const refreshIfNeeded = useCallback(async () => {
-    if (!supported) {
-      setSubscribed(false);
-      return;
-    }
-
-    try {
-      const config = await loadServerConfig();
-      if (!config.enabled) {
-        setSubscribed(false);
-        return;
-      }
-
-      const subscription = await refreshSubscriptionState();
-      if (!settings.pushNotificationsEnabled || Notification.permission !== "granted") {
-        return;
-      }
-
-      if (!subscription) {
-        setSubscribed(false);
-        return;
-      }
-
-      const subscriptionJson = asSubscriptionJson(subscription);
-      if (!subscriptionJson) {
-        setSubscribed(false);
-        return;
-      }
-
-      await putSubscription({
-        subscription: subscriptionJson,
-        appVersion: APP_VERSION,
-      });
-      setSubscribed(true);
-    } catch (nextError) {
-      setError(errorMessage(nextError, "Unable to refresh push notification state."));
-    }
-  }, [loadServerConfig, refreshSubscriptionState, settings.pushNotificationsEnabled, supported]);
-
   useEffect(() => {
     if (!supported) {
       setServerEnabled(false);
@@ -191,7 +152,7 @@ export function usePushNotifications() {
 
     void (async () => {
       try {
-        const config = await fetchWebPushConfig();
+        const config = await loadServerConfig();
         if (!active) {
           return;
         }
@@ -202,6 +163,28 @@ export function usePushNotifications() {
           return;
         }
         setSubscribed(subscription !== null);
+
+        if (!config.enabled) {
+          return;
+        }
+        if (!settings.pushNotificationsEnabled || Notification.permission !== "granted") {
+          return;
+        }
+        if (!subscription) {
+          setSubscribed(false);
+          return;
+        }
+
+        const subscriptionJson = asSubscriptionJson(subscription);
+        if (!subscriptionJson) {
+          setSubscribed(false);
+          return;
+        }
+
+        await putSubscription({
+          subscription: subscriptionJson,
+          appVersion: APP_VERSION,
+        });
       } catch (nextError) {
         if (!active) {
           return;
@@ -213,7 +196,7 @@ export function usePushNotifications() {
     return () => {
       active = false;
     };
-  }, [refreshSubscriptionState, supported]);
+  }, [loadServerConfig, refreshSubscriptionState, settings.pushNotificationsEnabled, supported]);
 
   return {
     supported,
@@ -224,7 +207,6 @@ export function usePushNotifications() {
     error,
     enable,
     disable,
-    refreshIfNeeded,
     canRequestPermission: canRequestNotificationPermission(),
     locallyEnabled: settings.pushNotificationsEnabled,
   } as const;
