@@ -43,6 +43,7 @@ import { DiffStatLabel, hasNonZeroStat } from "./DiffStatLabel";
 import { MessageCopyButton } from "./MessageCopyButton";
 import { computeMessageDurationStart, normalizeCompactToolLabel } from "./MessagesTimeline.logic";
 import { TerminalContextInlineChip } from "./TerminalContextInlineChip";
+import { AssistantMessageTtsButton } from "~/features/tts/AssistantMessageTtsButton";
 import {
   deriveDisplayedUserMessageState,
   type ParsedTerminalContextEntry,
@@ -510,15 +511,23 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                     </div>
                   );
                 })()}
-                <p className="mt-1.5 text-[10px] text-muted-foreground/30">
-                  {formatMessageMeta(
-                    row.message.createdAt,
-                    row.message.streaming
-                      ? formatElapsed(row.durationStart, nowIso)
-                      : formatElapsed(row.durationStart, row.message.completedAt),
-                    timestampFormat,
-                  )}
-                </p>
+                <div
+                  className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground/30"
+                  data-assistant-message-meta
+                >
+                  {!row.message.streaming && row.message.text.trim().length > 0 ? (
+                    <AssistantMessageTtsButton messageId={row.message.id} text={row.message.text} />
+                  ) : null}
+                  <p data-assistant-message-timestamp>
+                    {formatMessageMeta(
+                      row.message.createdAt,
+                      row.message.streaming
+                        ? formatElapsed(row.durationStart, nowIso)
+                        : formatElapsed(row.durationStart, row.message.completedAt),
+                      timestampFormat,
+                    )}
+                  </p>
+                </div>
               </div>
             </>
           );

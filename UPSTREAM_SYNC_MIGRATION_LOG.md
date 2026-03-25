@@ -99,8 +99,11 @@ Instead:
 
 - Goal:
   - reintroduce assistant TTS on the upstream message architecture
-- Planned automation:
-  - add a phase-specific browser smoke script after the phase passes manual review
+- Automated verification:
+  - `bun run sync:phase5:smoke`
+- Notes:
+  - keep TTS as a self-contained sidecar under `apps/web/src/features/tts`
+  - prefer a single integration seam in the assistant message metadata row rather than threading TTS through broader chat/provider architecture
 
 ### Phase 6: Stale pending user-input recovery and debug tooling
 
@@ -129,6 +132,16 @@ Instead:
   - verify the full sync candidate before opening `sync/upstream-20260324 -> main`
 - Planned automation:
   - aggregate the phase smoke scripts into a full sync verification run
+
+### Phase 10: Fork settings sidecar refactor
+
+- Goal:
+  - refactor retained fork-only settings UI to conform to the dedicated sidecar-section pattern after the main sync is otherwise stable
+- Planned automation:
+  - extend the settings smoke to validate the extracted sidecar entry point
+- Notes:
+  - keep the canonical app settings store unless a future setting is truly sidecar-only
+  - use [FORK_SETTINGS_SIDECAR_PLAN.md](/home/claude/code/t3code/FORK_SETTINGS_SIDECAR_PLAN.md) as the target architecture
 
 ## Automation Conventions
 
