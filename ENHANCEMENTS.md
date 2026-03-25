@@ -734,3 +734,32 @@ Older fork-specific changes that predate this ledger should be added here over t
 - Notes:
   - 2026-03-23: Added a repo-root `favicon.svg` by copying the existing T3 production logo so the current sidebar detector can resolve an icon for the monorepo root without widening the server search rules.
   - 2026-03-25: Restored `favicon.svg` at repo root after it was lost (recovered from git history via commit `76af7b5b`).
+
+## Mobile-visible copy and action buttons
+
+- Status: active
+- First added: 2026-03-25
+- Last updated: 2026-03-25
+- Owners: T3 Code fork
+- Upstream impact: low
+- Areas: chat message UI, mobile/touch UX
+- Why this exists: upstream copy and revert buttons on user messages (and copy buttons on code blocks) only appear on hover, which is inaccessible on mobile/touch devices. This enhancement makes them always visible on small screens and touch-only devices, and left-aligns the user message action buttons.
+- Files:
+  - `apps/web/src/components/chat/MessagesTimeline.tsx`
+  - `apps/web/src/index.css`
+- Runtime touchpoints:
+  - user message copy/revert button row in the chat timeline
+  - code block copy button in assistant markdown messages
+- If this breaks, look for:
+  - copy/revert buttons invisible on mobile after upstream sync
+  - buttons appearing right-aligned again after upstream changes to `MessagesTimeline.tsx`
+  - code block copy button not visible on touch devices
+- Verify with:
+  - open the app on a mobile device or use browser devtools touch emulation; copy and revert buttons should be visible without hovering
+  - on desktop, buttons should still appear only on hover
+- Rollback notes:
+  - in `MessagesTimeline.tsx`, remove `max-sm:opacity-100` from the action button container div
+  - in `index.css`, remove the `@media (hover: none)` block for `.chat-markdown-copy-button`
+  - in `MessagesTimeline.tsx`, change `justify-start` back to `justify-end` on the action button container
+- Notes:
+  - 2026-03-25: Initial implementation. User message buttons use Tailwind `max-sm:opacity-100` (width-based). Code block buttons use `@media (hover: none)` (capability-based, catches tablets too). Action buttons left-aligned.
