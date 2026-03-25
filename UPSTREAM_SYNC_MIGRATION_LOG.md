@@ -109,12 +109,15 @@ Instead:
 
 - Goal:
   - port only the remaining fork-only debug tooling and minimal runtime/server sidecars that are still justified after the upstream sync
+- Automated verification:
+  - `bun run sync:phase6:smoke`
+- Script:
+  - [sync-phase-6-debug-sidecar.mjs](/home/claude/code/t3code/apps/web/e2e/sync-phase-6-debug-sidecar.mjs)
 - Notes:
   - treat stale pending approval/user-input cleanup as already-upstream unless comparison proves a remaining missing behavior
   - focus this phase on optional fork-only debugging surfaces such as the user-input debug panel and any truly necessary runtime overrides
   - prefer sidecar seams over broad runtime divergence
-- Planned automation:
-  - add a phase-specific smoke or targeted test bundle after the phase passes manual review
+  - the current phase smoke validates the Settings diagnostics opener, debug query param compatibility, sidecar mount, and global error/rejection breadcrumb capture on the local dev web endpoint
 
 ### Phase 7: Web push notifications
 

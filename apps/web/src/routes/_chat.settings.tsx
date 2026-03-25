@@ -28,6 +28,12 @@ import { Switch } from "../components/ui/switch";
 import { SidebarInset } from "../components/ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip";
 import { resolveAndPersistPreferredEditor } from "../editorPreferences";
+import {
+  clearUserInputDebugEntries,
+  setUserInputDebugCollapsed,
+  setUserInputDebugEnabled,
+  useUserInputDebugStore,
+} from "../debug/userInputDebug";
 import { isElectron } from "../env";
 import { useTheme } from "../hooks/useTheme";
 import { serverConfigQueryOptions } from "../lib/serverReactQuery";
@@ -189,6 +195,8 @@ function SettingsRouteView() {
   const { theme, setTheme } = useTheme();
   const { settings, defaults, updateSettings, resetSettings } = useAppSettings();
   const serverConfigQuery = useQuery(serverConfigQueryOptions());
+  const userInputDebugEnabled = useUserInputDebugStore((store) => store.enabled);
+  const userInputDebugEntryCount = useUserInputDebugStore((store) => store.entries.length);
   const [isOpeningKeybindings, setIsOpeningKeybindings] = useState(false);
   const [openKeybindingsError, setOpenKeybindingsError] = useState<string | null>(null);
   const [openInstallProviders, setOpenInstallProviders] = useState<Record<ProviderKind, boolean>>({
@@ -973,6 +981,48 @@ function SettingsRouteView() {
                   </div>
                 </div>
               </SettingsRow>
+
+              <SettingsRow
+                title="Diagnostics"
+                description="Open the fork-only user input debug sidecar without editing the URL."
+                status={
+                  <>
+                    <span className="block">
+                      {userInputDebugEnabled
+                        ? `Debug panel enabled with ${userInputDebugEntryCount} captured breadcrumb${userInputDebugEntryCount === 1 ? "" : "s"}.`
+                        : "Debug panel currently hidden."}
+                    </span>
+                    <span className="mt-1 block">
+                      Uses the same sidecar as <code>?debugUserInput=1</code> and is intended for
+                      dev/local diagnostics.
+                    </span>
+                  </>
+                }
+                control={
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      onClick={() => {
+                        setUserInputDebugEnabled(true);
+                        setUserInputDebugCollapsed(false);
+                      }}
+                    >
+                      {userInputDebugEnabled ? "Show panel" : "Open panel"}
+                    </Button>
+                    <Button
+                      size="xs"
+                      variant="ghost"
+                      disabled={!userInputDebugEnabled && userInputDebugEntryCount === 0}
+                      onClick={() => {
+                        clearUserInputDebugEntries();
+                      }}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                }
+              />
 
               <SettingsRow
                 title="Keybindings"

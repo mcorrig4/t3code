@@ -524,11 +524,11 @@ Copy this block for new entries:
 
 - Status: active
 - First added: 2026-03-16
-- Last updated: 2026-03-24
+- Last updated: 2026-03-25
 - Owners: T3 Code fork
 - Upstream impact: medium
-- Areas: provider session restart recovery, pending approval cleanup, pending user-input cleanup, in-app debugging
-- Why this exists: provider callback state does not survive app restarts or recovered sessions, so stale approval and user-input prompts need to be cleared cleanly instead of lingering in the UI, and the fork keeps a floating debug panel plus toast breadcrumbs to diagnose these failures on mobile and dev surfaces.
+- Areas: provider session restart recovery, pending approval cleanup, pending user-input cleanup, fork-sidecar debugging
+- Why this exists: provider callback state does not survive app restarts or recovered sessions, so stale approval and user-input prompts need to be cleared cleanly instead of lingering in the UI, and the fork keeps an isolated debug sidecar with floating panel, toast breadcrumbs, and global error capture to diagnose these failures on mobile and dev surfaces without deeply entangling the core app shell.
 - Files:
   - `ENHANCEMENTS.md`
   - `apps/server/src/orchestration/Layers/ProviderCommandReactor.ts`
@@ -539,18 +539,24 @@ Copy this block for new entries:
   - `apps/web/src/session-logic.test.ts`
   - `apps/web/src/routes/__root.tsx`
   - `apps/web/src/debug/userInputDebug.ts`
+  - `apps/web/src/debug/UserInputDebugSidecar.tsx`
   - `apps/web/src/components/debug/UserInputDebugPanel.tsx`
+  - `apps/web/src/components/ChatView.tsx`
   - `apps/web/src/components/chat/ComposerPendingUserInputPanel.tsx`
 - Runtime touchpoints:
   - stale approval prompts after a provider session restart
   - stale user-input prompts after a provider session restart
   - `?debugUserInput=1`
+  - `/settings` diagnostics control for opening the panel without editing the URL
   - the floating "User Input Debug" panel
+  - sidecar-mounted global `window.error` and `unhandledrejection` breadcrumbs
   - expired-question toast messaging
 - If this breaks, look for:
   - approval or user-input cards lingering after the underlying provider session has restarted
   - answering an old question failing without removing the stale prompt from the UI
   - the debug panel not appearing when `debugUserInput=1` is present
+  - pending-question state transitions no longer appearing in the debug breadcrumb list
+  - uncaught client errors failing to appear in the panel during debug sessions
   - missing or unclear error messaging when a question belongs to an earlier provider session
 - Verify with:
   - `/home/claude/.bun/bin/bun fmt`
@@ -561,11 +567,13 @@ Copy this block for new entries:
   - reproduce a stale question/approval after a provider session restart and confirm the old prompt is cleared instead of remaining interactive
 - Rollback notes:
   - revert the stale-request cleanup handling in the files above
-  - remove the debug panel mount and query-param store if the debug surface should be disabled entirely
+  - remove the sidecar mount and query-param store if the debug surface should be disabled entirely
   - if only the debug UI is too invasive, keep the stale-request cleanup logic and remove the panel separately
 - Notes:
   - 2026-03-16: Added the original stale pending user-input recovery flow after provider session restarts.
   - 2026-03-24: Backfilled the ledger entry after confirming current `main` already includes both the stale cleanup behavior and the floating debug panel/query-param tooling that made PR #19 obsolete.
+  - 2026-03-25: Refactored the debug UI into a dedicated `UserInputDebugSidecar` mount so breadcrumb capture, the floating panel, and global browser error listeners can stay isolated from the rest of the root shell while still accepting explicit user-input event breadcrumbs from `ChatView` and domain-event routing.
+  - 2026-03-25: Added a Settings -> Advanced -> Diagnostics control that opens the same sidecar-backed panel without requiring the `debugUserInput` query param.
 
 ## T3 Dev Runtime Branding
 

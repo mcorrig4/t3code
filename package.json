@@ -43,6 +43,7 @@
     "sync:phase3:smoke": "bun run --cwd apps/web sync:phase3:smoke",
     "sync:phase4:smoke": "bun run --cwd apps/web sync:phase4:smoke",
     "sync:phase5:smoke": "bun run --cwd apps/web sync:phase5:smoke",
+    "sync:phase6:smoke": "bun run --cwd apps/web sync:phase6:smoke",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "build:contracts": "turbo run build --filter=@t3tools/contracts",
