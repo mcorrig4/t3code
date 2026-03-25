@@ -25,6 +25,7 @@
 - [ ] Persist each project's folded/collapsed sidebar state in local storage
 - [ ] Add ability to pin up to 3 chats under a project
 - [ ] Add button near the top of the chat window to jump to the previous user message
+- [ ] Make copy button always visible instead of only showing it on hover
 - [ ] Add long-press on mobile to open the chat context menu
 - [ ] Alternatively add a three-dots button to open the chat context menu on mobile
 - [ ] Add swipe-from-the-left gesture to slide open the sidebar nav on mobile PWA
