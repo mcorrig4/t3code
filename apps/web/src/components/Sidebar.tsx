@@ -96,11 +96,13 @@ import {
   resolveSidebarNewThreadEnvMode,
   resolveThreadRowClassName,
   resolveThreadStatusPill,
+  shouldOpenMultiSelectThreadMenu,
   shouldClearThreadSelectionOnMouseDown,
   sortProjectsForSidebar,
   sortThreadsForSidebar,
 } from "./Sidebar.logic";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
+import ForkThreadContextMenuButton from "./sidebar/ForkThreadContextMenuButton";
 
 const EMPTY_KEYBINDINGS: ResolvedKeybindingsConfig = [];
 const THREAD_PREVIEW_LIMIT = 6;
@@ -926,6 +928,18 @@ export default function Sidebar() {
     ],
   );
 
+  const handleThreadContextMenuButtonOpen = useCallback(
+    (threadId: ThreadId, position: { x: number; y: number }) => {
+      if (shouldOpenMultiSelectThreadMenu(selectedThreadIds, threadId)) {
+        void handleMultiSelectContextMenu(position);
+        return;
+      }
+
+      void handleThreadContextMenu(threadId, position);
+    },
+    [handleMultiSelectContextMenu, handleThreadContextMenu, selectedThreadIds],
+  );
+
   const handleThreadClick = useCallback(
     (event: MouseEvent, threadId: ThreadId, orderedProjectThreadIds: readonly ThreadId[]) => {
       const isMac = isMacPlatform(navigator.platform);
@@ -1149,7 +1163,7 @@ export default function Sidebar() {
             className={resolveThreadRowClassName({
               isActive,
               isSelected,
-            })}
+            }).concat(" group/thread-row")}
             onClick={(event) => {
               handleThreadClick(event, thread.id, orderedProjectThreadIds);
             }}
@@ -1167,7 +1181,7 @@ export default function Sidebar() {
             }}
             onContextMenu={(event) => {
               event.preventDefault();
-              if (selectedThreadIds.size > 0 && selectedThreadIds.has(thread.id)) {
+              if (shouldOpenMultiSelectThreadMenu(selectedThreadIds, thread.id)) {
                 void handleMultiSelectContextMenu({
                   x: event.clientX,
                   y: event.clientY,
@@ -1272,6 +1286,13 @@ export default function Sidebar() {
               >
                 {formatRelativeTime(thread.updatedAt ?? thread.createdAt)}
               </span>
+              <ForkThreadContextMenuButton
+                threadTitle={thread.title}
+                isHighlighted={isHighlighted}
+                onOpenFromAnchor={(position) => {
+                  handleThreadContextMenuButtonOpen(thread.id, position);
+                }}
+              />
             </div>
           </SidebarMenuSubButton>
         </SidebarMenuSubItem>

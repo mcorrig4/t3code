@@ -763,3 +763,39 @@ Older fork-specific changes that predate this ledger should be added here over t
   - in `MessagesTimeline.tsx`, change `justify-start` back to `justify-end` on the action button container
 - Notes:
   - 2026-03-25: Initial implementation. User message buttons use Tailwind `max-sm:opacity-100` (width-based). Code block buttons use `@media (hover: none)` (capability-based, catches tablets too). Action buttons left-aligned.
+
+## Thread sidebar overflow sidecar
+
+- Status: active
+- First added: 2026-03-25
+- Last updated: 2026-03-25
+- Owners: T3 Code fork
+- Upstream impact: low
+- Areas: thread sidebar rows, context menu reachability, mobile/touch UX
+- Why this exists: upstream thread actions were only reachable by right-clicking a thread row, which makes the menu undiscoverable on touch devices and awkward in the browser. This fork adds a sidecar-owned overflow trigger after the timestamp that opens the exact existing thread context menu without forking the menu contents.
+- Files:
+  - `apps/web/src/components/Sidebar.tsx`
+  - `apps/web/src/components/Sidebar.logic.ts`
+  - `apps/web/src/components/Sidebar.logic.test.ts`
+  - `apps/web/src/components/sidebar/ForkThreadContextMenuButton.tsx`
+  - `apps/web/src/components/sidebar/ForkThreadContextMenuButton.test.tsx`
+- Runtime touchpoints:
+  - thread rows in the left sidebar
+  - single-thread and multi-select thread context menu entry points
+- If this breaks, look for:
+  - the overflow button disappearing after upstream sidebar row markup or group class changes
+  - the button navigating into the thread instead of opening the context menu
+  - a selected thread opening the single-thread menu instead of the bulk menu
+- Verify with:
+  - `/home/claude/.bun/bin/bun fmt`
+  - `/home/claude/.bun/bin/bun lint`
+  - `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
+  - on desktop, hover a thread row and confirm the button appears after the timestamp and opens the existing context menu
+  - in a mobile viewport or touch emulation, confirm the button stays visible without hover and still opens the same menu
+  - create a multi-selection and confirm the button on a selected row opens the bulk menu instead of navigating
+- Rollback notes:
+  - remove `ForkThreadContextMenuButton` from `Sidebar.tsx`
+  - delete `ForkThreadContextMenuButton.tsx` and its test if the fork no longer needs a sidecar trigger
+  - keep upstream right-click behavior intact unless replacing it with another shared trigger path
+- Notes:
+  - 2026-03-25: Added a fork-owned thread overflow button mounted from `Sidebar.tsx`, with menu ownership still centralized in the existing sidebar handlers and multi-select routing preserved through a small logic helper.
