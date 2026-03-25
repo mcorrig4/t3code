@@ -262,7 +262,7 @@ Copy this block for new entries:
 
 - Status: active
 - First added: 2026-03-20
-- Last updated: 2026-03-23
+- Last updated: 2026-03-25
 - Owners: T3 Code fork
 - Upstream impact: medium
 - Areas: server-side notification fanout, PWA service worker behavior, settings UX, thread deep links
@@ -295,6 +295,7 @@ Copy this block for new entries:
   - `apps/web/src/pwa.test.ts`
   - `apps/web/src/routes/__root.tsx`
   - `apps/web/src/routes/_chat.settings.tsx`
+  - `apps/web/src/settings/ForkSettingsSection.tsx`
   - `apps/web/src/notifications/client.ts`
   - `apps/web/src/notifications/pushSupport.ts`
   - `apps/web/src/notifications/registerServiceWorker.ts`
@@ -305,6 +306,7 @@ Copy this block for new entries:
   - `GET /api/web-push/config`
   - `PUT /api/web-push/subscription`
   - `DELETE /api/web-push/subscription`
+  - `/sw.js`
   - `/service-worker.js`
   - `/manifest.webmanifest`
   - chat settings notification controls
@@ -330,6 +332,7 @@ Copy this block for new entries:
 - Notes:
   - 2026-03-20: Added a self-contained web push sidecar using `web-push`, a subscription persistence table, a root-scope service worker, and settings-driven browser subscription flow.
   - 2026-03-23: Hardened route and fanout behavior so malformed stored subscriptions are deleted instead of aborting delivery, `/api/web-push/config` rejects wrong methods with `405`, and disabled subscription writes return deterministic `409` responses.
+  - 2026-03-25: Reapplied the feature onto the fresh upstream sync branch as a dedicated sidecar again, keeping the existing root-scope `/sw.js` PWA shim intact while mounting the notifications UI through a fork-owned settings section instead of scattering push controls across the page.
 
 ## Production Web Push Runtime Configuration
 

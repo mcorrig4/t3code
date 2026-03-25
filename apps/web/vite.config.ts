@@ -25,6 +25,28 @@ const buildSourcemap =
     : sourcemapEnv === "hidden"
       ? "hidden"
       : true;
+const webPushProxyTarget = (() => {
+  try {
+    const parsed = new URL(process.env.T3CODE_WEB_API_URL?.trim() || "http://127.0.0.1:3774");
+    return parsed.origin;
+  } catch {
+    const wsUrl = process.env.VITE_WS_URL?.trim();
+    if (wsUrl) {
+      try {
+        const parsed = new URL(wsUrl);
+        parsed.protocol = parsed.protocol === "wss:" ? "https:" : "http:";
+        parsed.pathname = "";
+        parsed.search = "";
+        parsed.hash = "";
+        return parsed.origin;
+      } catch {
+        return undefined;
+      }
+    }
+
+    return undefined;
+  }
+})();
 
 function t3BootShellPlugin() {
   return {
@@ -65,6 +87,17 @@ export default defineConfig({
     port,
     strictPort: true,
     allowedHosts,
+    ...(webPushProxyTarget
+      ? {
+          proxy: {
+            "/api/web-push": {
+              target: webPushProxyTarget,
+              changeOrigin: true,
+              xfwd: true,
+            },
+          },
+        }
+      : {}),
     hmr: {
       // Explicit config so Vite's HMR WebSocket connects reliably
       // inside Electron's BrowserWindow. Vite 8 uses console.debug for

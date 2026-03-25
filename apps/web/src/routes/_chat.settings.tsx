@@ -39,6 +39,7 @@ import { useTheme } from "../hooks/useTheme";
 import { serverConfigQueryOptions } from "../lib/serverReactQuery";
 import { cn } from "../lib/utils";
 import { ensureNativeApi, readNativeApi } from "../nativeApi";
+import { ForkSettingsSection } from "../settings/ForkSettingsSection";
 
 const THEME_OPTIONS = [
   {
@@ -1059,6 +1060,8 @@ function SettingsRouteView() {
                 }
               />
             </SettingsSection>
+
+            <ForkSettingsSection />
           </div>
         </div>
       </div>

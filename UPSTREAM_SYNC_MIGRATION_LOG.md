@@ -123,10 +123,13 @@ Instead:
 
 - Goal:
   - restore the web push sidecar on the new upstream base
+- Automated verification:
+  - `bun run sync:phase7:smoke`
+- Script:
+  - [sync-phase-7-web-push.mjs](/home/claude/code/t3code/apps/web/e2e/sync-phase-7-web-push.mjs)
 - Notes:
   - keep this separate from the runtime/debug phase because it is its own full-stack sidecar spanning settings, service worker, client registration, server layers, persistence, and runtime config
-- Planned automation:
-  - add a phase-specific browser smoke script after the phase passes manual review
+  - the current phase smoke validates the fork settings-sidecar mount, `/api/web-push/config`, and safe disabled-server behavior on the local dev web endpoint
 
 ### Phase 8: Final audit and promotion readiness
 

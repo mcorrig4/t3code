@@ -28,6 +28,7 @@ import { onServerConfigUpdated, onServerWelcome } from "../wsNativeApi";
 import { providerQueryKeys } from "../lib/providerReactQuery";
 import { projectQueryKeys } from "../lib/projectReactQuery";
 import { collectActiveTerminalThreadIds } from "../lib/terminalStateCleanup";
+import { usePushNotifications } from "../notifications/usePushNotifications";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -61,6 +62,7 @@ function RootRouteView() {
       <ToastProvider>
         <AnchoredToastProvider>
           <EventRouter />
+          <PushNotificationsBootstrap />
           <DesktopProjectBootstrap />
           <UserInputDebugSidecar />
           <Outlet />
@@ -68,6 +70,16 @@ function RootRouteView() {
       </ToastProvider>
     </>
   );
+}
+
+function PushNotificationsBootstrap() {
+  const { refreshIfNeeded } = usePushNotifications();
+
+  useEffect(() => {
+    void refreshIfNeeded();
+  }, [refreshIfNeeded]);
+
+  return null;
 }
 
 function BootShellReadySignal({ nativeApiAvailable }: { nativeApiAvailable: boolean }) {

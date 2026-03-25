@@ -41,6 +41,9 @@ interface CliInput {
   readonly devUrl: Option.Option<URL>;
   readonly noBrowser: Option.Option<boolean>;
   readonly authToken: Option.Option<string>;
+  readonly webPushVapidPublicKey: Option.Option<string>;
+  readonly webPushVapidPrivateKey: Option.Option<string>;
+  readonly webPushSubject: Option.Option<string>;
   readonly autoBootstrapProjectFromCwd: Option.Option<boolean>;
   readonly logWebSocketEvents: Option.Option<boolean>;
 }
@@ -110,6 +113,18 @@ const CliEnvConfig = Config.all({
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
+  webPushVapidPublicKey: Config.string("T3CODE_WEB_PUSH_VAPID_PUBLIC_KEY").pipe(
+    Config.option,
+    Config.map(Option.getOrUndefined),
+  ),
+  webPushVapidPrivateKey: Config.string("T3CODE_WEB_PUSH_VAPID_PRIVATE_KEY").pipe(
+    Config.option,
+    Config.map(Option.getOrUndefined),
+  ),
+  webPushSubject: Config.string("T3CODE_WEB_PUSH_SUBJECT").pipe(
+    Config.option,
+    Config.map(Option.getOrUndefined),
+  ),
   autoBootstrapProjectFromCwd: Config.boolean("T3CODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
@@ -156,6 +171,11 @@ const ServerConfigLive = (input: CliInput) =>
       const derivedPaths = yield* deriveServerPaths(baseDir, devUrl);
       const noBrowser = resolveBooleanFlag(input.noBrowser, env.noBrowser ?? mode === "desktop");
       const authToken = Option.getOrUndefined(input.authToken) ?? env.authToken;
+      const webPushVapidPublicKey =
+        Option.getOrUndefined(input.webPushVapidPublicKey) ?? env.webPushVapidPublicKey;
+      const webPushVapidPrivateKey =
+        Option.getOrUndefined(input.webPushVapidPrivateKey) ?? env.webPushVapidPrivateKey;
+      const webPushSubject = Option.getOrUndefined(input.webPushSubject) ?? env.webPushSubject;
       const autoBootstrapProjectFromCwd = resolveBooleanFlag(
         input.autoBootstrapProjectFromCwd,
         env.autoBootstrapProjectFromCwd ?? mode === "web",
@@ -181,6 +201,9 @@ const ServerConfigLive = (input: CliInput) =>
         devUrl,
         noBrowser,
         authToken,
+        webPushVapidPublicKey,
+        webPushVapidPrivateKey,
+        webPushSubject,
         autoBootstrapProjectFromCwd,
         logWebSocketEvents,
       } satisfies ServerConfigShape;
@@ -239,6 +262,22 @@ const makeServerProgram = (input: CliInput) =>
     yield* cliConfig.fixPath;
 
     const config = yield* ServerConfig;
+    const configuredWebPushFieldCount = [
+      config.webPushVapidPublicKey,
+      config.webPushVapidPrivateKey,
+      config.webPushSubject,
+    ].filter((value) => typeof value === "string" && value.length > 0).length;
+
+    if (configuredWebPushFieldCount > 0 && configuredWebPushFieldCount < 3) {
+      yield* Effect.logWarning(
+        "web push configuration is incomplete; push notifications disabled",
+        {
+          hasPublicKey: Boolean(config.webPushVapidPublicKey),
+          hasPrivateKey: Boolean(config.webPushVapidPrivateKey),
+          hasSubject: Boolean(config.webPushSubject),
+        },
+      );
+    }
 
     if (!config.devUrl && !config.staticDir) {
       yield* Effect.logWarning(
@@ -257,11 +296,19 @@ const makeServerProgram = (input: CliInput) =>
       config.host && !isWildcardHost(config.host)
         ? `http://${formatHostForUrl(config.host)}:${config.port}`
         : localUrl;
-    const { authToken, devUrl, ...safeConfig } = config;
+    const {
+      authToken,
+      devUrl,
+      webPushVapidPublicKey: _webPushVapidPublicKey,
+      webPushVapidPrivateKey: _webPushVapidPrivateKey,
+      webPushSubject: _webPushSubject,
+      ...safeConfig
+    } = config;
     yield* Effect.logInfo("T3 Code running", {
       ...safeConfig,
       devUrl: devUrl?.toString(),
       authEnabled: Boolean(authToken),
+      webPushEnabled: configuredWebPushFieldCount === 3,
     });
 
     if (!config.noBrowser) {
@@ -313,6 +360,18 @@ const authTokenFlag = Flag.string("auth-token").pipe(
   Flag.withAlias("token"),
   Flag.optional,
 );
+const webPushVapidPublicKeyFlag = Flag.string("web-push-vapid-public-key").pipe(
+  Flag.withDescription("VAPID public key used for Web Push."),
+  Flag.optional,
+);
+const webPushVapidPrivateKeyFlag = Flag.string("web-push-vapid-private-key").pipe(
+  Flag.withDescription("VAPID private key used for Web Push."),
+  Flag.optional,
+);
+const webPushSubjectFlag = Flag.string("web-push-subject").pipe(
+  Flag.withDescription("VAPID subject used for Web Push."),
+  Flag.optional,
+);
 const autoBootstrapProjectFromCwdFlag = Flag.boolean("auto-bootstrap-project-from-cwd").pipe(
   Flag.withDescription(
     "Create a project for the current working directory on startup when missing.",
@@ -335,6 +394,9 @@ export const t3Cli = Command.make("t3", {
   devUrl: devUrlFlag,
   noBrowser: noBrowserFlag,
   authToken: authTokenFlag,
+  webPushVapidPublicKey: webPushVapidPublicKeyFlag,
+  webPushVapidPrivateKey: webPushVapidPrivateKeyFlag,
+  webPushSubject: webPushSubjectFlag,
   autoBootstrapProjectFromCwd: autoBootstrapProjectFromCwdFlag,
   logWebSocketEvents: logWebSocketEventsFlag,
 }).pipe(

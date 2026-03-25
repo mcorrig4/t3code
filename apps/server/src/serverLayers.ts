@@ -31,6 +31,8 @@ import { GitManagerLive } from "./git/Layers/GitManager";
 import { GitCoreLive } from "./git/Layers/GitCore";
 import { GitHubCliLive } from "./git/Layers/GitHubCli";
 import { CodexTextGenerationLive } from "./git/Layers/CodexTextGeneration";
+import { WebPushNotificationsLive } from "./notifications/Layers/WebPushNotifications.ts";
+import { WebPushSubscriptionRepositoryLive } from "./notifications/Layers/WebPushSubscriptionRepository.ts";
 import { PtyAdapter } from "./terminal/Services/PTY";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService";
 
@@ -130,6 +132,10 @@ export function makeServerRuntimeServicesLayer() {
     Layer.provideMerge(GitHubCliLive),
     Layer.provideMerge(textGenerationLayer),
   );
+  const webPushLayer = WebPushNotificationsLive.pipe(
+    Layer.provideMerge(runtimeServicesLayer),
+    Layer.provideMerge(WebPushSubscriptionRepositoryLive),
+  );
 
   return Layer.mergeAll(
     orchestrationReactorLayer,
@@ -137,5 +143,6 @@ export function makeServerRuntimeServicesLayer() {
     gitManagerLayer,
     terminalLayer,
     KeybindingsLive,
+    webPushLayer,
   ).pipe(Layer.provideMerge(NodeServices.layer));
 }

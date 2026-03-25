@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  SERVICE_WORKER_PATH,
   SERVICE_WORKER_SCOPE,
   isStandalonePwa,
   shouldHideHeaderOpenInPicker,
@@ -40,6 +41,10 @@ describe("shouldRegisterServiceWorker", () => {
 
   it("keeps the installed app scoped to the site root", () => {
     expect(SERVICE_WORKER_SCOPE).toBe("/");
+  });
+
+  it("keeps the root worker shim path stable", () => {
+    expect(SERVICE_WORKER_PATH).toBe("/sw.js");
   });
 });
 

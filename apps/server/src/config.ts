@@ -42,6 +42,9 @@ export interface ServerConfigShape extends ServerDerivedPaths {
   readonly devUrl: URL | undefined;
   readonly noBrowser: boolean;
   readonly authToken: string | undefined;
+  readonly webPushVapidPublicKey: string | undefined;
+  readonly webPushVapidPrivateKey: string | undefined;
+  readonly webPushSubject: string | undefined;
   readonly autoBootstrapProjectFromCwd: boolean;
   readonly logWebSocketEvents: boolean;
 }
@@ -107,6 +110,9 @@ export class ServerConfig extends ServiceMap.Service<ServerConfig, ServerConfigS
           staticDir: undefined,
           devUrl,
           noBrowser: false,
+          webPushVapidPublicKey: undefined,
+          webPushVapidPrivateKey: undefined,
+          webPushSubject: undefined,
         } satisfies ServerConfigShape;
       }),
     );

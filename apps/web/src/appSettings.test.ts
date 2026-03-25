@@ -113,6 +113,15 @@ describe("timestamp format defaults", () => {
   });
 });
 
+describe("push notification defaults", () => {
+  it("defaults push notifications to disabled", () => {
+    const decode = Schema.decodeSync(Schema.fromJsonString(AppSettingsSchema));
+    const settings = decode("{}");
+
+    expect(settings.pushNotificationsEnabled).toBe(false);
+  });
+});
+
 describe("sidebar sort defaults", () => {
   it("defaults project sorting to updated_at", () => {
     expect(DEFAULT_SIDEBAR_PROJECT_SORT_ORDER).toBe("updated_at");
