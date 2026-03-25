@@ -48,9 +48,10 @@ try {
   });
 
   process.stdout.write("[sync-phase-7] checking notifications status card...\n");
-  const statusCard = page
-    .getByText("Status", { exact: true })
-    .locator("xpath=ancestor::div[contains(@class, 'rounded-lg')][1]");
+  const notificationsSection = page
+    .getByText("Notifications", { exact: true })
+    .locator("xpath=ancestor::div[contains(@class, 'border-t')][1]");
+  const statusCard = notificationsSection.locator("div.rounded-lg").first();
   await statusCard.waitFor({ state: "visible", timeout: 10_000 });
   const statusCardText = await statusCard.innerText();
   expect(statusCardText.includes("Status"), "Notifications status card did not render cleanly.");

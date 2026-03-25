@@ -142,11 +142,15 @@ Instead:
 
 - Goal:
   - refactor retained fork-only settings UI to conform to the dedicated sidecar-section pattern after the main sync is otherwise stable
-- Planned automation:
-  - extend the settings smoke to validate the extracted sidecar entry point
+- Automated verification:
+  - `bun run sync:phase9:smoke`
+- Script:
+  - [sync-phase-9-settings-sidecar.mjs](/home/claude/code/t3code/apps/web/e2e/sync-phase-9-settings-sidecar.mjs)
 - Notes:
   - keep the canonical app settings store unless a future setting is truly sidecar-only
   - use [FORK_SETTINGS_SIDECAR_PLAN.md](/home/claude/code/t3code/FORK_SETTINGS_SIDECAR_PLAN.md) as the target architecture
+  - this phase extracts the fork-owned Notifications, Codex session overrides, and Diagnostics controls behind a single `ForkSettingsSection` seam so `_chat.settings.tsx` can stay closer to upstream
+  - the upstream settings route should now treat `ForkSettingsSection` as the only fork-owned insertion point for settings UI unless a future feature has a very strong reason to live beside an upstream control
 
 ## Automation Conventions
 

@@ -17,6 +17,7 @@
     "sync:phase5:smoke": "vitest run src/features/tts/tts.test.ts src/features/tts/sanitizeTtsText.test.ts src/components/chat/MessagesTimeline.test.tsx",
     "sync:phase6:smoke": "node e2e/sync-phase-6-debug-sidecar.mjs",
     "sync:phase7:smoke": "node e2e/sync-phase-7-web-push.mjs && vitest run src/appSettings.test.ts src/pwa.test.ts ../server/src/notifications/http.test.ts ../server/src/notifications/policy.test.ts",
+    "sync:phase9:smoke": "node e2e/sync-phase-9-settings-sidecar.mjs",
     "test:browser": "vitest run --config vitest.browser.config.ts",
     "test:browser:install": "playwright install --with-deps chromium"
   },

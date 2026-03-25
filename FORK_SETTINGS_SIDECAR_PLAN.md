@@ -148,7 +148,8 @@ That second model looks cleaner initially but usually creates more maintenance c
 ## Current Candidate Sidecar Items
 
 - Codex native notification suppression
-- future fork-only web push settings
+- web push settings and status
+- diagnostics/debug-panel controls
 - future fork operational/runtime toggles
 
 ## Rule Of Thumb

@@ -8,6 +8,7 @@ const APP_SETTINGS_STORAGE_KEY = "t3code:app-settings:v1";
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext();
 const page = await context.newPage();
+page.setDefaultNavigationTimeout(60_000);
 
 function expect(condition, message) {
   if (!condition) {
@@ -17,11 +18,11 @@ function expect(condition, message) {
 
 try {
   process.stdout.write("[sync-phase-4] loading settings page...\n");
-  await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
+  await page.goto(settingsUrl, { waitUntil: "domcontentloaded" });
   await page.evaluate((storageKey) => {
     window.localStorage.removeItem(storageKey);
   }, APP_SETTINGS_STORAGE_KEY);
-  await page.goto(settingsUrl, { waitUntil: "domcontentloaded" });
+  await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
   await page.getByText("Settings").first().waitFor({ state: "visible", timeout: 10_000 });
 

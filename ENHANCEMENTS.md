@@ -73,7 +73,7 @@ Copy this block for new entries:
   - `apps/web/src/appSettings.ts`
   - `apps/web/src/appSettings.test.ts`
   - `apps/web/src/components/ChatView.tsx`
-  - `apps/web/src/routes/_chat.settings.tsx`
+  - `apps/web/src/settings/ForkSettingsSection.tsx`
   - `packages/contracts/src/orchestration.ts`
   - `packages/contracts/src/provider.test.ts`
 - Runtime touchpoints:
@@ -96,6 +96,7 @@ Copy this block for new entries:
   - if upstream adds a first-class session-scoped notification suppression option, replace this sidecar with the upstream-compatible path
 - Notes:
   - 2026-03-24: Added a browser-scoped T3 setting that maps to a Codex app-server-only `-c notify=[]` override, intentionally leaving `CODEX_HOME` and `~/.codex/config.toml` unchanged.
+  - 2026-03-25: Moved the fork-owned settings control into `ForkSettingsSection` so the upstream settings route only mounts the sidecar seam instead of owning the Codex-specific UI directly.
 
 ## Standardized Enhancement Ledger Filename
 
@@ -294,7 +295,6 @@ Copy this block for new entries:
   - `apps/web/src/pwa.ts`
   - `apps/web/src/pwa.test.ts`
   - `apps/web/src/routes/__root.tsx`
-  - `apps/web/src/routes/_chat.settings.tsx`
   - `apps/web/src/settings/ForkSettingsSection.tsx`
   - `apps/web/src/notifications/client.ts`
   - `apps/web/src/notifications/pushSupport.ts`
@@ -333,6 +333,7 @@ Copy this block for new entries:
   - 2026-03-20: Added a self-contained web push sidecar using `web-push`, a subscription persistence table, a root-scope service worker, and settings-driven browser subscription flow.
   - 2026-03-23: Hardened route and fanout behavior so malformed stored subscriptions are deleted instead of aborting delivery, `/api/web-push/config` rejects wrong methods with `405`, and disabled subscription writes return deterministic `409` responses.
   - 2026-03-25: Reapplied the feature onto the fresh upstream sync branch as a dedicated sidecar again, keeping the existing root-scope `/sw.js` PWA shim intact while mounting the notifications UI through a fork-owned settings section instead of scattering push controls across the page.
+  - 2026-03-25: Tightened Phase 8/9 integration by validating push subscription writes against the exact forwarded request origin and by keeping the settings ownership inside `ForkSettingsSection` instead of a direct `_chat.settings.tsx` branch.
 
 ## Production Web Push Runtime Configuration
 
@@ -578,6 +579,7 @@ Copy this block for new entries:
   - 2026-03-24: Backfilled the ledger entry after confirming current `main` already includes both the stale cleanup behavior and the floating debug panel/query-param tooling that made PR #19 obsolete.
   - 2026-03-25: Refactored the debug UI into a dedicated `UserInputDebugSidecar` mount so breadcrumb capture, the floating panel, and global browser error listeners can stay isolated from the rest of the root shell while still accepting explicit user-input event breadcrumbs from `ChatView` and domain-event routing.
   - 2026-03-25: Added a Settings -> Advanced -> Diagnostics control that opens the same sidecar-backed panel without requiring the `debugUserInput` query param.
+  - 2026-03-25: Moved the Diagnostics settings control into `ForkSettingsSection` so the upstream settings page only mounts the fork-owned sidecar section instead of hosting a dedicated debug row directly.
 
 ## T3 Dev Runtime Branding
 
