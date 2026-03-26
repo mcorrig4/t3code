@@ -33,6 +33,7 @@
 - [ ] Add settings option to open the user debug panel, like toggling `?debugUserInput=1`
 - [ ] Add ability to rename project folders (local storage or synced)
 - [ ] Fix mobile zoom issue when adding a new project
+- [ ] Fix mobile zoom issue when renaming a chat
 - [ ] Add in-app toast notifications that link back to finished threads or threads needing input
 - [ ] Do not send push notifications for events related to the chat thread currently open in the app
 - [ ] Add settings option to toggle whether notifications are suppressed for the currently open chat thread
