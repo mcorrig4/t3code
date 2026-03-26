@@ -216,10 +216,15 @@
   }
 }
 
-/* Always show copy buttons on touch / mobile devices */
+/* Always show copy/action buttons on touch / mobile devices */
 @media (hover: none) {
   .chat-markdown .chat-markdown-copy-button {
     opacity: 1;
     pointer-events: auto;
+  }
+
+  /* User message copy & revert buttons (Tailwind group-hover pattern) */
+  .group .group-hover\:opacity-100 {
+    opacity: 1;
   }
 }
