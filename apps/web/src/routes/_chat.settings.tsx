@@ -33,6 +33,7 @@ import { useTheme } from "../hooks/useTheme";
 import { serverConfigQueryOptions } from "../lib/serverReactQuery";
 import { cn } from "../lib/utils";
 import { ensureNativeApi, readNativeApi } from "../nativeApi";
+import { useForkSettingsResetPlan } from "../fork/settings";
 import { ForkSettingsSection } from "../settings/ForkSettingsSection";
 
 const THEME_OPTIONS = [
@@ -250,7 +251,7 @@ function SettingsRouteView() {
     settings.claudeBinaryPath !== defaults.claudeBinaryPath ||
     settings.codexBinaryPath !== defaults.codexBinaryPath ||
     settings.codexHomePath !== defaults.codexHomePath;
-  const changedSettingLabels = [
+  const upstreamDirtyLabels = [
     ...(theme !== "system" ? ["Theme"] : []),
     ...(settings.timestampFormat !== defaults.timestampFormat ? ["Time format"] : []),
     ...(settings.diffWordWrap !== defaults.diffWordWrap ? ["Diff line wrapping"] : []),
@@ -267,6 +268,7 @@ function SettingsRouteView() {
       : []),
     ...(isInstallSettingsDirty ? ["Provider installs"] : []),
   ];
+  const { resetPlan, resetForkSettings } = useForkSettingsResetPlan(upstreamDirtyLabels);
 
   const openKeybindingsFile = useCallback(() => {
     if (!keybindingsConfigPath) return;
@@ -356,18 +358,20 @@ function SettingsRouteView() {
   );
 
   async function restoreDefaults() {
-    if (changedSettingLabels.length === 0) return;
+    if (!resetPlan.hasChanges) return;
 
     const api = readNativeApi();
     const confirmed = await (api ?? ensureNativeApi()).dialogs.confirm(
-      ["Restore default settings?", `This will reset: ${changedSettingLabels.join(", ")}.`].join(
-        "\n",
-      ),
+      [
+        "Restore default settings?",
+        `This will reset: ${resetPlan.allDirtyLabels.join(", ")}.`,
+      ].join("\n"),
     );
     if (!confirmed) return;
 
     setTheme("system");
     resetSettings();
+    resetForkSettings();
     setOpenInstallProviders({
       codex: false,
       claudeAgent: false,
@@ -392,7 +396,7 @@ function SettingsRouteView() {
                 <Button
                   size="xs"
                   variant="outline"
-                  disabled={changedSettingLabels.length === 0}
+                  disabled={!resetPlan.hasChanges}
                   onClick={() => void restoreDefaults()}
                 >
                   <RotateCcwIcon className="size-3.5" />
@@ -412,7 +416,7 @@ function SettingsRouteView() {
               <Button
                 size="xs"
                 variant="outline"
-                disabled={changedSettingLabels.length === 0}
+                disabled={!resetPlan.hasChanges}
                 onClick={() => void restoreDefaults()}
               >
                 <RotateCcwIcon className="size-3.5" />
@@ -779,6 +783,7 @@ function SettingsRouteView() {
                               className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-100"
                               aria-label={`Remove ${row.slug}`}
                               onClick={() => removeCustomModel(row.provider, row.slug)}
+                              data-slot="custom-model-remove-action"
                             >
                               <XIcon className="size-3.5 text-muted-foreground hover:text-foreground" />
                             </button>

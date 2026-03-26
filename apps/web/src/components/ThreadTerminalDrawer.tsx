@@ -1140,6 +1140,7 @@ export default function ThreadTerminalDrawer({
                                         className="inline-flex size-3.5 items-center justify-center rounded text-xs font-medium leading-none text-muted-foreground opacity-0 transition hover:bg-accent hover:text-foreground group-hover:opacity-100"
                                         onClick={() => onCloseTerminal(terminalId)}
                                         aria-label={closeTerminalLabel}
+                                        data-slot="thread-terminal-close-action"
                                       />
                                     }
                                   >

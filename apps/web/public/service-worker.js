@@ -1,4 +1,4 @@
-const APP_SHELL_CACHE = "t3code-app-shell-v5";
+const APP_SHELL_CACHE = "t3code-app-shell-v7";
 const APP_SHELL_URL = "/";
 const APP_SHELL_ASSETS = [
   APP_SHELL_URL,
@@ -7,8 +7,6 @@ const APP_SHELL_ASSETS = [
   "/favicon.ico",
   "/favicon-32x32.png",
   "/favicon-16x16.png",
-  "/sw.js",
-  "/service-worker.js",
 ];
 
 function isAppNavigation(request, url) {
@@ -21,6 +19,15 @@ function isAppNavigation(request, url) {
   }
 
   return !url.pathname.startsWith("/api/") && !url.pathname.startsWith("/attachments/");
+}
+
+function shouldCacheNavigationResponse(request, url, response) {
+  if (!response.ok || url.origin !== self.location.origin) {
+    return false;
+  }
+
+  const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
+  return request.mode === "navigate" && contentType.includes("text/html");
 }
 
 function parsePushPayload(event) {
@@ -76,8 +83,10 @@ self.addEventListener("fetch", (event) => {
       (async () => {
         try {
           const response = await fetch(request);
-          const cache = await caches.open(APP_SHELL_CACHE);
-          await cache.put(APP_SHELL_URL, response.clone());
+          if (shouldCacheNavigationResponse(request, url, response)) {
+            const cache = await caches.open(APP_SHELL_CACHE);
+            await cache.put(APP_SHELL_URL, response.clone());
+          }
           return response;
         } catch {
           const cachedShell = await caches.match(APP_SHELL_URL);

@@ -3,6 +3,34 @@ import { type WebPushConfigResponse } from "./types";
 const WEB_PUSH_CONFIG_PATH = "/api/web-push/config";
 const WEB_PUSH_SUBSCRIPTION_PATH = "/api/web-push/subscription";
 
+function resolveServerAuthToken(): string | null {
+  const bridgeUrl = window.desktopBridge?.getWsUrl?.();
+  const envUrl = import.meta.env.VITE_WS_URL as string | undefined;
+  const wsUrl =
+    bridgeUrl && bridgeUrl.length > 0 ? bridgeUrl : envUrl && envUrl.length > 0 ? envUrl : null;
+  if (!wsUrl) {
+    return null;
+  }
+
+  try {
+    return new URL(wsUrl).searchParams.get("token");
+  } catch {
+    return null;
+  }
+}
+
+function buildAuthHeaders(headers: HeadersInit = {}): HeadersInit {
+  const token = resolveServerAuthToken();
+  if (!token) {
+    return headers;
+  }
+
+  return {
+    ...headers,
+    Authorization: `Bearer ${token}`,
+  };
+}
+
 function assertWebPushConfigResponse(value: unknown): WebPushConfigResponse {
   if (typeof value !== "object" || value === null || !("enabled" in value)) {
     throw new Error("Invalid web push config response.");
@@ -63,6 +91,7 @@ async function assertOk(response: Response): Promise<void> {
 export async function fetchWebPushConfig(): Promise<WebPushConfigResponse> {
   const response = await fetch(WEB_PUSH_CONFIG_PATH, {
     cache: "no-store",
+    headers: buildAuthHeaders(),
   });
   await assertOk(response);
   return assertWebPushConfigResponse(await readJsonResponse(response));
@@ -74,9 +103,9 @@ export async function putSubscription(input: {
 }): Promise<void> {
   const response = await fetch(WEB_PUSH_SUBSCRIPTION_PATH, {
     method: "PUT",
-    headers: {
+    headers: buildAuthHeaders({
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify({
       subscription: input.subscription,
       userAgent: navigator.userAgent,
@@ -89,9 +118,9 @@ export async function putSubscription(input: {
 export async function deleteSubscription(input: { readonly endpoint: string }): Promise<void> {
   const response = await fetch(WEB_PUSH_SUBSCRIPTION_PATH, {
     method: "DELETE",
-    headers: {
+    headers: buildAuthHeaders({
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify({
       subscription: {
         endpoint: input.endpoint,

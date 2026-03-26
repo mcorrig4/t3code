@@ -58,6 +58,8 @@ describe("resolveAppBranding", () => {
       [
         '<html lang="en">',
         '<meta name="theme-color" media="(prefers-color-scheme: light)" content="#07101f" />',
+        '<meta name="application-name" content="T3 Code" />',
+        '<meta name="apple-mobile-web-app-title" content="T3 Code" />',
         BRANDING_HTML_MARKER,
         "</html>",
       ].join("\n"),

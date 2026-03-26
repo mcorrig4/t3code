@@ -1,3 +1,4 @@
+import { expect } from "./shared/assertions.mjs";
 import { chromium } from "playwright";
 
 const localWebUrl = process.env.T3_SYNC_LOCAL_WEB_URL?.trim() || "http://127.0.0.1:5734";
@@ -5,12 +6,6 @@ const baseUrl = process.env.T3_SYNC_BASE_URL?.trim() || localWebUrl;
 const debugUrl = new URL("/?debugUserInput=1", baseUrl).toString();
 const settingsUrl = new URL("/settings", baseUrl).toString();
 const DEBUG_STORAGE_KEY = "t3code:debug-user-input";
-
-function expect(condition, message) {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext();

@@ -1,27 +1,27 @@
+import { expect } from "./shared/assertions.mjs";
 import { chromium } from "playwright";
 
 const localWebUrl = process.env.T3_SYNC_LOCAL_WEB_URL?.trim() || "http://127.0.0.1:5734";
 const baseUrl = process.env.T3_SYNC_BASE_URL?.trim() || localWebUrl;
 const settingsUrl = new URL("/settings", baseUrl).toString();
 const APP_SETTINGS_STORAGE_KEY = "t3code:app-settings:v1";
+const FORK_SETTINGS_STORAGE_KEY = "t3code:fork-settings:v1";
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext();
 const page = await context.newPage();
 page.setDefaultNavigationTimeout(60_000);
 
-function expect(condition, message) {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
-
 try {
   process.stdout.write("[sync-phase-4] loading settings page...\n");
   await page.goto(settingsUrl, { waitUntil: "domcontentloaded" });
-  await page.evaluate((storageKey) => {
-    window.localStorage.removeItem(storageKey);
-  }, APP_SETTINGS_STORAGE_KEY);
+  await page.evaluate(
+    ([appKey, forkKey]) => {
+      window.localStorage.removeItem(appKey);
+      window.localStorage.removeItem(forkKey);
+    },
+    [APP_SETTINGS_STORAGE_KEY, FORK_SETTINGS_STORAGE_KEY],
+  );
   await page.reload({ waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
   await page.getByText("Settings").first().waitFor({ state: "visible", timeout: 10_000 });
@@ -73,17 +73,22 @@ try {
   await codexBinaryInput.fill("/tmp/codex-phase4");
   await page.getByLabel("Suppress Codex native notifications").click();
 
-  const persistedSettings = await page.evaluate((storageKey) => {
+  const persistedAppSettings = await page.evaluate((storageKey) => {
     const raw = window.localStorage.getItem(storageKey);
     return raw ? JSON.parse(raw) : null;
   }, APP_SETTINGS_STORAGE_KEY);
 
+  const persistedForkSettings = await page.evaluate((storageKey) => {
+    const raw = window.localStorage.getItem(storageKey);
+    return raw ? JSON.parse(raw) : null;
+  }, FORK_SETTINGS_STORAGE_KEY);
+
   expect(
-    persistedSettings?.codexBinaryPath === "/tmp/codex-phase4",
+    persistedAppSettings?.codexBinaryPath === "/tmp/codex-phase4",
     "Codex binary path did not persist.",
   );
   expect(
-    persistedSettings?.suppressCodexAppServerNotifications === true,
+    persistedForkSettings?.suppressCodexAppServerNotifications === true,
     "Codex notification suppression did not persist.",
   );
 

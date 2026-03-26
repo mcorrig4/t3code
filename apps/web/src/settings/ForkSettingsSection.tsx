@@ -2,13 +2,13 @@ import { type ReactNode } from "react";
 
 import { Button } from "../components/ui/button";
 import { Switch } from "../components/ui/switch";
-import { useAppSettings } from "../appSettings";
 import {
   clearUserInputDebugEntries,
   setUserInputDebugCollapsed,
   setUserInputDebugEnabled,
   useUserInputDebugStore,
 } from "../debug/userInputDebug";
+import { useForkSettings } from "../fork/settings";
 import { usePushNotifications } from "../notifications/usePushNotifications";
 
 function ForkSettingsCard({
@@ -34,7 +34,7 @@ function ForkSettingsCard({
 }
 
 export function ForkSettingsSection() {
-  const { settings, defaults, updateSettings } = useAppSettings();
+  const { settings, defaults, updateForkSettings } = useForkSettings();
   const pushNotifications = usePushNotifications();
   const userInputDebugEnabled = useUserInputDebugStore((store) => store.enabled);
   const userInputDebugEntryCount = useUserInputDebugStore((store) => store.entries.length);
@@ -140,7 +140,7 @@ export function ForkSettingsSection() {
               <Switch
                 checked={settings.suppressCodexAppServerNotifications}
                 onCheckedChange={(checked) =>
-                  updateSettings({
+                  updateForkSettings({
                     suppressCodexAppServerNotifications: Boolean(checked),
                   })
                 }
@@ -155,7 +155,7 @@ export function ForkSettingsSection() {
                 size="xs"
                 variant="outline"
                 onClick={() =>
-                  updateSettings({
+                  updateForkSettings({
                     suppressCodexAppServerNotifications:
                       defaults.suppressCodexAppServerNotifications,
                   })

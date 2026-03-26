@@ -53,6 +53,10 @@ import { GitCore } from "./git/Services/GitCore.ts";
 import { GitCommandError, GitManagerError } from "./git/Errors.ts";
 import { MigrationError } from "@effect/sql-sqlite-bun/SqliteMigrator";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService.ts";
+import {
+  WebPushNotifications,
+  type WebPushNotificationsShape,
+} from "./notifications/Services/WebPushNotifications.ts";
 
 const asEventId = (value: string): EventId => EventId.makeUnsafe(value);
 const asProviderItemId = (value: string): ProviderItemId => ProviderItemId.makeUnsafe(value);
@@ -76,6 +80,17 @@ const defaultProviderStatuses: ReadonlyArray<ServerProviderStatus> = [
 
 const defaultProviderHealthService: ProviderHealthShape = {
   getStatuses: Effect.succeed(defaultProviderStatuses),
+};
+
+const defaultWebPushNotifications: WebPushNotificationsShape = {
+  config: {
+    enabled: false,
+    publicKey: null,
+    subject: null,
+  },
+  subscribe: () => Effect.void,
+  unsubscribe: () => Effect.void,
+  notifyEvent: () => Effect.void,
 };
 
 class MockTerminalManager implements TerminalManagerShape {
@@ -402,15 +417,24 @@ async function requestPath(
   port: number,
   requestPath: string,
   headers?: Http.OutgoingHttpHeaders,
+  options?: { method?: string; body?: string },
 ): Promise<{ statusCode: number; body: string; headers: Http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
+    const requestHeaders: Http.OutgoingHttpHeaders = {
+      Connection: "close",
+      ...headers,
+    };
+    if (options?.body) {
+      requestHeaders["Content-Length"] = Buffer.byteLength(options.body);
+    }
+
     const req = Http.request(
       {
         hostname: "127.0.0.1",
-        headers,
+        headers: requestHeaders,
         port,
         path: requestPath,
-        method: "GET",
+        method: options?.method ?? "GET",
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -426,6 +450,52 @@ async function requestPath(
         });
       },
     );
+    req.once("error", reject);
+    if (options?.body) {
+      req.write(options.body);
+    }
+    req.end();
+  });
+}
+
+async function requestWebSocketUpgrade(
+  port: number,
+  requestPath: string,
+  headers?: Http.OutgoingHttpHeaders,
+): Promise<{ statusCode: number; body: string; headers: Http.IncomingHttpHeaders }> {
+  return new Promise((resolve, reject) => {
+    const req = Http.request({
+      hostname: "127.0.0.1",
+      port,
+      path: requestPath,
+      headers: {
+        Connection: "Upgrade",
+        Upgrade: "websocket",
+        "Sec-WebSocket-Version": "13",
+        "Sec-WebSocket-Key": Buffer.from("test-websocket-key").toString("base64"),
+        ...headers,
+      },
+    });
+
+    req.once("upgrade", (res, socket) => {
+      socket.destroy();
+      reject(
+        new Error(`Expected WebSocket upgrade rejection but received ${res.statusCode ?? 101}`),
+      );
+    });
+    req.once("response", (res) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk) => {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      });
+      res.on("end", () => {
+        resolve({
+          statusCode: res.statusCode ?? 0,
+          body: Buffer.concat(chunks).toString("utf8"),
+          headers: res.headers,
+        });
+      });
+    });
     req.once("error", reject);
     req.end();
   });
@@ -495,6 +565,7 @@ describe("WebSocket Server", () => {
       gitManager?: GitManagerShape;
       gitCore?: Pick<GitCoreShape, "listBranches" | "initRepo" | "pullCurrentBranch">;
       terminalManager?: TerminalManagerShape;
+      webPushNotifications?: WebPushNotificationsShape;
     } = {},
   ): Promise<Http.Server> {
     if (serverScope) {
@@ -538,6 +609,10 @@ describe("WebSocket Server", () => {
       options.terminalManager
         ? Layer.succeed(TerminalManager, options.terminalManager)
         : Layer.empty,
+      Layer.succeed(
+        WebPushNotifications,
+        options.webPushNotifications ?? defaultWebPushNotifications,
+      ),
     );
 
     const runtimeLayer = Layer.merge(
@@ -1991,5 +2066,258 @@ describe("WebSocket Server", () => {
 
     const [authorizedWs] = await connectAndAwaitWelcome(port, "secret-token");
     connections.push(authorizedWs);
+  });
+
+  it("fails closed when websocket auth is configured but empty", async () => {
+    server = await createTestServer({ cwd: "/test", authToken: "" });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const response = await requestWebSocketUpgrade(port, "/?token=anything");
+    expect(response.statusCode).toBe(500);
+    expect(response.body).toContain("Server auth misconfigured");
+  });
+
+  it("rejects authenticated web-push config access without a bearer token", async () => {
+    server = await createTestServer({
+      cwd: "/test",
+      authToken: "secret-token",
+      webPushNotifications: {
+        ...defaultWebPushNotifications,
+        config: {
+          enabled: true,
+          publicKey: "public-key",
+          subject: "mailto:test@example.com",
+        },
+      },
+    });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const unauthorized = await requestPath(port, "/api/web-push/config");
+    expect(unauthorized.statusCode).toBe(401);
+
+    const authorized = await requestPath(port, "/api/web-push/config", {
+      Authorization: "Bearer secret-token",
+    });
+    expect(authorized.statusCode).toBe(200);
+    expect(JSON.parse(authorized.body)).toEqual(
+      expect.objectContaining({
+        enabled: true,
+        publicKey: "public-key",
+      }),
+    );
+  });
+
+  it("keeps web-push config open when server auth is disabled", async () => {
+    server = await createTestServer({
+      cwd: "/test",
+      webPushNotifications: {
+        ...defaultWebPushNotifications,
+        config: {
+          enabled: true,
+          publicKey: "public-key",
+          subject: "mailto:test@example.com",
+        },
+      },
+    });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+
+    const response = await requestPath(port, "/api/web-push/config");
+    expect(response.statusCode).toBe(200);
+  });
+
+  it("rejects web-push subscription writes without auth when auth is enabled", async () => {
+    const subscribe = vi.fn(() => Effect.void);
+    server = await createTestServer({
+      cwd: "/test",
+      authToken: "secret-token",
+      webPushNotifications: {
+        ...defaultWebPushNotifications,
+        config: {
+          enabled: true,
+          publicKey: "public-key",
+          subject: "mailto:test@example.com",
+        },
+        subscribe,
+      },
+    });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    const origin = `http://127.0.0.1:${port}`;
+    const body = JSON.stringify({
+      subscription: {
+        endpoint: "https://web.push.apple.com/example-endpoint",
+        keys: {
+          p256dh:
+            "BCwE8uCo5bRFcPrI5di1ZTf0oYUCM-f6xBcu2tKe5IZl2koYmOxEalrKP8eudqmMOdoWzw_ncgVajpJySDcbm8c",
+          auth: "K9i0eYvPxWbww_gHxSQU_A",
+        },
+      },
+    });
+
+    const unauthorized = await requestPath(
+      port,
+      "/api/web-push/subscription",
+      {
+        "Content-Type": "application/json",
+        Origin: origin,
+      },
+      { method: "PUT", body },
+    );
+    expect(unauthorized.statusCode).toBe(401);
+    expect(subscribe).not.toHaveBeenCalled();
+
+    const authorized = await requestPath(
+      port,
+      "/api/web-push/subscription",
+      {
+        "Content-Type": "application/json",
+        Origin: origin,
+        Authorization: "Bearer secret-token",
+      },
+      { method: "PUT", body },
+    );
+    expect(authorized.statusCode).toBe(204);
+    expect(subscribe).toHaveBeenCalledOnce();
+  });
+
+  it("returns 413 for oversized web-push subscription bodies", async () => {
+    server = await createTestServer({
+      cwd: "/test",
+      authToken: "secret-token",
+      webPushNotifications: defaultWebPushNotifications,
+    });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    const origin = `http://127.0.0.1:${port}`;
+    const oversizedBody = JSON.stringify({
+      payload: "x".repeat(70_000),
+    });
+
+    const response = await requestPath(
+      port,
+      "/api/web-push/subscription",
+      {
+        "Content-Type": "application/json",
+        Origin: origin,
+        Authorization: "Bearer secret-token",
+      },
+      { method: "PUT", body: oversizedBody },
+    );
+
+    expect(response.statusCode).toBe(413);
+    expect(response.body).toBe("Request body too large");
+  });
+
+  it("allows authenticated web-push unsubscribe writes when auth is enabled", async () => {
+    const unsubscribe = vi.fn(() => Effect.void);
+    server = await createTestServer({
+      cwd: "/test",
+      authToken: "secret-token",
+      webPushNotifications: {
+        ...defaultWebPushNotifications,
+        config: {
+          enabled: true,
+          publicKey: "public-key",
+          subject: "mailto:test@example.com",
+        },
+        unsubscribe,
+      },
+    });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    const origin = `http://127.0.0.1:${port}`;
+    const body = JSON.stringify({
+      subscription: {
+        endpoint: "https://web.push.apple.com/example-endpoint",
+      },
+    });
+
+    const unauthorized = await requestPath(
+      port,
+      "/api/web-push/subscription",
+      {
+        "Content-Type": "application/json",
+        Origin: origin,
+      },
+      { method: "DELETE", body },
+    );
+    expect(unauthorized.statusCode).toBe(401);
+    expect(unsubscribe).not.toHaveBeenCalled();
+
+    const authorized = await requestPath(
+      port,
+      "/api/web-push/subscription",
+      {
+        "Content-Type": "application/json",
+        Origin: origin,
+        Authorization: "Bearer secret-token",
+      },
+      { method: "DELETE", body },
+    );
+    expect(authorized.statusCode).toBe(204);
+    expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+
+  it("keeps web-push subscription writes open when server auth is disabled", async () => {
+    const subscribe = vi.fn(() => Effect.void);
+    const unsubscribe = vi.fn(() => Effect.void);
+    server = await createTestServer({
+      cwd: "/test",
+      webPushNotifications: {
+        ...defaultWebPushNotifications,
+        config: {
+          enabled: true,
+          publicKey: "public-key",
+          subject: "mailto:test@example.com",
+        },
+        subscribe,
+        unsubscribe,
+      },
+    });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    const origin = `http://127.0.0.1:${port}`;
+    const subscribeBody = JSON.stringify({
+      subscription: {
+        endpoint: "https://web.push.apple.com/example-endpoint",
+        keys: {
+          p256dh:
+            "BCwE8uCo5bRFcPrI5di1ZTf0oYUCM-f6xBcu2tKe5IZl2koYmOxEalrKP8eudqmMOdoWzw_ncgVajpJySDcbm8c",
+          auth: "K9i0eYvPxWbww_gHxSQU_A",
+        },
+      },
+    });
+    const unsubscribeBody = JSON.stringify({
+      subscription: {
+        endpoint: "https://web.push.apple.com/example-endpoint",
+      },
+    });
+
+    const subscribeResponse = await requestPath(
+      port,
+      "/api/web-push/subscription",
+      {
+        "Content-Type": "application/json",
+        Origin: origin,
+      },
+      { method: "PUT", body: subscribeBody },
+    );
+    expect(subscribeResponse.statusCode).toBe(204);
+    expect(subscribe).toHaveBeenCalledOnce();
+
+    const unsubscribeResponse = await requestPath(
+      port,
+      "/api/web-push/subscription",
+      {
+        "Content-Type": "application/json",
+        Origin: origin,
+      },
+      { method: "DELETE", body: unsubscribeBody },
+    );
+    expect(unsubscribeResponse.statusCode).toBe(204);
+    expect(unsubscribe).toHaveBeenCalledOnce();
   });
 });

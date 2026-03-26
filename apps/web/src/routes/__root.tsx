@@ -15,7 +15,7 @@ import { dismissBootShell } from "../bootShell";
 import { markBootReady } from "../bootState";
 import { Button } from "../components/ui/button";
 import { AnchoredToastProvider, ToastProvider, toastManager } from "../components/ui/toast";
-import { logUserInputDebug } from "../debug/userInputDebug";
+import { logUserInputDebugLazy } from "../debug/userInputDebug";
 import { UserInputDebugSidecar } from "../debug/UserInputDebugSidecar";
 import { resolveAndPersistPreferredEditor } from "../editorPreferences";
 import { serverConfigQueryOptions, serverQueryKeys } from "../lib/serverReactQuery";
@@ -238,19 +238,19 @@ function EventRouter() {
 
     const unsubDomainEvent = api.orchestration.onDomainEvent((event) => {
       if (event.type === "thread.user-input-response-requested") {
-        logUserInputDebug({
+        logUserInputDebugLazy(() => ({
           level: "info",
           stage: "domain-event",
           message: "Observed thread.user-input-response-requested",
           threadId: event.payload.threadId,
           requestId: event.payload.requestId,
           ...withDebugDetail(stringifyDebugDetail(event.payload.answers)),
-        });
+        }));
       }
       if (event.type === "thread.activity-appended") {
         const activity = event.payload.activity;
         if (isInterestingUserInputActivity(activity)) {
-          logUserInputDebug({
+          logUserInputDebugLazy(() => ({
             level: activity.kind === "provider.user-input.respond.failed" ? "error" : "success",
             stage: "domain-activity",
             message: `Observed ${activity.kind}`,
@@ -262,7 +262,7 @@ function EventRouter() {
                 payload: activity.payload,
               }),
             ),
-          });
+          }));
         }
         if (activity.kind === "provider.user-input.respond.failed") {
           toastManager.add({

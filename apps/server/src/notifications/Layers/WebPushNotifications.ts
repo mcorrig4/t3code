@@ -3,13 +3,16 @@ import { createRequire } from "node:module";
 import { Effect, Layer, Schema } from "effect";
 
 import { ServerConfig } from "../../config.ts";
+import {
+  ForkNotificationIntentResolver,
+  type ForkNotificationIntentResolverShape,
+} from "../../fork/notifications/intentResolver.ts";
 import { ProjectionSnapshotQuery } from "../../orchestration/Services/ProjectionSnapshotQuery.ts";
 import {
   WebPushNotifications,
   type WebPushNotificationsShape,
 } from "../Services/WebPushNotifications.ts";
 import { WebPushSubscriptionRepository } from "../Services/WebPushSubscriptionRepository.ts";
-import { notificationIntentFromEvent } from "../policy.ts";
 import { type WebPushConfigShape, WebPushRequestError } from "../types.ts";
 import type { PushSubscription, SendResult } from "web-push";
 
@@ -21,6 +24,7 @@ class WebPushDeliveryError extends Schema.TaggedErrorClass<WebPushDeliveryError>
   "WebPushDeliveryError",
   {
     message: Schema.String,
+    statusCode: Schema.optional(Schema.Number),
   },
 ) {}
 
@@ -67,6 +71,8 @@ const makeWebPushNotifications = Effect.gen(function* () {
   const serverConfig = yield* ServerConfig;
   const projectionSnapshotQuery = yield* ProjectionSnapshotQuery;
   const repository = yield* WebPushSubscriptionRepository;
+  const notificationIntentResolver: ForkNotificationIntentResolverShape =
+    yield* ForkNotificationIntentResolver;
 
   const hasFullConfig =
     typeof serverConfig.webPushVapidPublicKey === "string" &&
@@ -153,12 +159,29 @@ const makeWebPushNotifications = Effect.gen(function* () {
       catch: (error) =>
         new WebPushDeliveryError({
           message: error instanceof Error ? error.message : String(error),
+          statusCode:
+            typeof error === "object" &&
+            error !== null &&
+            "statusCode" in error &&
+            typeof (error as { statusCode?: unknown }).statusCode === "number"
+              ? (error as { statusCode: number }).statusCode
+              : undefined,
         }),
     });
 
   const notifyEvent: WebPushNotificationsShape["notifyEvent"] = (event) =>
     Effect.gen(function* () {
       if (!config.enabled) {
+        return;
+      }
+
+      if (!notificationIntentResolver.isPotentiallyNotifiableEvent(event)) {
+        if (process.env.NODE_ENV !== "production") {
+          yield* Effect.logDebug("ignoring unexpected event in web push notification pipeline", {
+            eventType: event.type,
+            eventId: event.eventId,
+          });
+        }
         return;
       }
 
@@ -169,7 +192,10 @@ const makeWebPushNotifications = Effect.gen(function* () {
         return;
       }
 
-      const intent = notificationIntentFromEvent({ event, snapshot });
+      const intent = yield* notificationIntentResolver.resolveNotificationIntent({
+        event,
+        snapshot,
+      });
       if (intent === null) {
         return;
       }
@@ -214,7 +240,12 @@ const makeWebPushNotifications = Effect.gen(function* () {
               Effect.as(true as const),
               Effect.catch((error) =>
                 isPermanentDeliveryError(error)
-                  ? repository.deleteByEndpoint({ endpoint: subscription.endpoint }).pipe(
+                  ? Effect.logInfo(
+                      `Pruning dead web-push subscription (permanent ${error.statusCode ?? "unknown"} error)`,
+                    ).pipe(
+                      Effect.andThen(
+                        repository.deleteByEndpoint({ endpoint: subscription.endpoint }),
+                      ),
                       Effect.catch(() => Effect.void),
                       Effect.as(false as const),
                     )

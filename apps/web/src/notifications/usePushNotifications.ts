@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { APP_VERSION } from "../branding";
-import { useAppSettings } from "../appSettings";
+import { useForkSettings } from "../fork/settings";
 import {
   decodeBase64UrlPublicKey,
   deleteSubscription,
@@ -28,7 +28,7 @@ function asSubscriptionJson(subscription: PushSubscription): PushSubscriptionJSO
 }
 
 export function usePushNotifications() {
-  const { settings, updateSettings } = useAppSettings();
+  const { settings, updateForkSettings } = useForkSettings();
   const supported = isPushSupported();
   const [serverEnabled, setServerEnabled] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
@@ -66,7 +66,7 @@ export function usePushNotifications() {
     try {
       const config = await loadServerConfig();
       if (!config.enabled) {
-        updateSettings({ pushNotificationsEnabled: false });
+        updateForkSettings({ pushNotificationsEnabled: false });
         setSubscribed(false);
         throw new Error("Web push notifications are not configured on this server.");
       }
@@ -74,7 +74,7 @@ export function usePushNotifications() {
       const registration = await registerPushServiceWorker();
       const nextPermission = await Notification.requestPermission();
       if (nextPermission !== "granted") {
-        updateSettings({ pushNotificationsEnabled: false });
+        updateForkSettings({ pushNotificationsEnabled: false });
         setSubscribed(false);
         throw new Error(
           nextPermission === "denied"
@@ -101,18 +101,18 @@ export function usePushNotifications() {
         appVersion: APP_VERSION,
       });
 
-      updateSettings({ pushNotificationsEnabled: true });
+      updateForkSettings({ pushNotificationsEnabled: true });
       setSubscribed(true);
     } catch (nextError) {
       setError(errorMessage(nextError, "Unable to enable push notifications."));
     } finally {
       setBusy(false);
     }
-  }, [loadServerConfig, supported, updateSettings]);
+  }, [loadServerConfig, supported, updateForkSettings]);
 
   const disable = useCallback(async () => {
     if (!supported) {
-      updateSettings({ pushNotificationsEnabled: false });
+      updateForkSettings({ pushNotificationsEnabled: false });
       setSubscribed(false);
       return;
     }
@@ -132,14 +132,14 @@ export function usePushNotifications() {
         await subscription.unsubscribe().catch(() => false);
       }
 
-      updateSettings({ pushNotificationsEnabled: false });
+      updateForkSettings({ pushNotificationsEnabled: false });
       setSubscribed(false);
     } catch (nextError) {
       setError(errorMessage(nextError, "Unable to disable push notifications."));
     } finally {
       setBusy(false);
     }
-  }, [refreshSubscriptionState, supported, updateSettings]);
+  }, [refreshSubscriptionState, supported, updateForkSettings]);
 
   useEffect(() => {
     if (!supported) {
@@ -196,7 +196,13 @@ export function usePushNotifications() {
     return () => {
       active = false;
     };
-  }, [loadServerConfig, refreshSubscriptionState, settings.pushNotificationsEnabled, supported]);
+  }, [
+    loadServerConfig,
+    refreshSubscriptionState,
+    settings.pushNotificationsEnabled,
+    supported,
+    updateForkSettings,
+  ]);
 
   return {
     supported,

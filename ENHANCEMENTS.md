@@ -98,6 +98,8 @@ Copy this block for new entries:
   - 2026-03-24: Added a browser-scoped T3 setting that maps to a Codex app-server-only `-c notify=[]` override, intentionally leaving `CODEX_HOME` and `~/.codex/config.toml` unchanged.
   - 2026-03-25: Moved the fork-owned settings control into `ForkSettingsSection` so the upstream settings route only mounts the sidecar seam instead of owning the Codex-specific UI directly.
   - 2026-03-25: Fixed a regression where the web app reintroduced `codex.configOverrides`, but the shared provider-options schema and Codex launch path still ignored that field, so `notify=[]` never reached the spawned `codex app-server` process.
+  - 2026-03-26: Moved the persisted `suppressCodexAppServerNotifications` flag into the dedicated fork settings store under `apps/web/src/fork/settings`, keeping the upstream app settings schema focused on upstream-equivalent controls while preserving the existing `ForkSettingsSection` seam.
+  - 2026-03-26: Added `useForkSettingsResetPlan(...)` so the settings route can compose fork reset state through the fork settings seam instead of directly reconstructing fork-store defaults and dirty labels inline.
 
 ## Standardized Enhancement Ledger Filename
 
@@ -385,6 +387,13 @@ Copy this block for new entries:
   - 2026-03-23: Hardened route and fanout behavior so malformed stored subscriptions are deleted instead of aborting delivery, `/api/web-push/config` rejects wrong methods with `405`, and disabled subscription writes return deterministic `409` responses.
   - 2026-03-25: Reapplied the feature onto the fresh upstream sync branch as a dedicated sidecar again, keeping the existing root-scope `/sw.js` PWA shim intact while mounting the notifications UI through a fork-owned settings section instead of scattering push controls across the page.
   - 2026-03-25: Tightened Phase 8/9 integration by validating push subscription writes against the exact forwarded request origin and by keeping the settings ownership inside `ForkSettingsSection` instead of a direct `_chat.settings.tsx` branch.
+  - 2026-03-26: Extracted the HTTP sidecar into `apps/server/src/fork/http/*`, so `wsServer.ts` now delegates branding and web-push REST handling through a single fork seam instead of carrying inline route branches.
+  - 2026-03-26: Tightened the web-push auth boundary so `/api/web-push/config` and `/api/web-push/subscription` now require the server auth token whenever `T3CODE_AUTH_TOKEN` is enabled, while preserving open dev/local behavior when auth is disabled.
+  - 2026-03-26: Narrowed fork HTTP auth to bearer headers only for the REST sidecar, intentionally dropping query-string token fallback there so auth tokens are less likely to leak through logs, history, or intermediaries.
+  - 2026-03-26: Added the fork notification intent resolver allowlist under `apps/server/src/fork/notifications/intentResolver.ts`, so irrelevant orchestration events are filtered before any projection snapshot read and permanent 404/410 delivery failures can once again prune dead subscriptions.
+  - 2026-03-26: Moved the persisted browser notification toggle into the dedicated fork settings store and updated the web push client to forward the auth token on REST calls derived from the same configured WebSocket URL.
+  - 2026-03-26: Hardened the service-worker app-shell cache so only successful same-origin HTML navigations replace the cached shell, preventing transient 500/503 pages from poisoning offline startup.
+  - 2026-03-26: Added a development-only warning on the real web-push delivery path when non-allowlisted orchestration events reach notification handling, so unexpected fanout candidates surface during sync/debug work without paying snapshot cost first.
 
 ## Production Web Push Runtime Configuration
 
@@ -632,6 +641,31 @@ Copy this block for new entries:
   - 2026-03-25: Added a Settings -> Advanced -> Diagnostics control that opens the same sidecar-backed panel without requiring the `debugUserInput` query param.
   - 2026-03-25: Moved the Diagnostics settings control into `ForkSettingsSection` so the upstream settings page only mounts the fork-owned sidecar section instead of hosting a dedicated debug row directly.
   - 2026-03-26: Added Codex session-override breadcrumbs in `ChatView` so the sidecar records the exact `providerOptions` payload, suppression flag, runtime mode, and interaction mode sent with each `thread.turn.start`, making it easier to verify whether `notify=[]` is present before debugging server launch behavior.
+  - 2026-03-26: Added `logUserInputDebugLazy(...)` and migrated the heavier JSON-stringifying debug callsites so the sidecar avoids building large breadcrumb payloads when diagnostics are disabled.
+
+## Fork Capsule Sync Infrastructure
+
+- Status: active
+- First added: 2026-03-26
+- Last updated: 2026-03-26
+- Owners: T3 Code fork
+- Upstream impact: none
+- Areas: sync workflow, smoke verification, architecture docs
+- Why this exists: the fork now tracks retained sidecar behavior by capsule so future upstream syncs can rebind seams and rerun capsule-owned smoke checks instead of rediscovering fork behavior from scratch.
+- Files:
+  - `docs/fork-architecture.md`
+  - `docs/fork-acceptance-matrix.md`
+  - `apps/web/src/fork/testing/forkSmokeManifest.ts`
+  - `apps/web/e2e/check-fork-acceptance-matrix.ts`
+  - `UPSTREAM_SYNC_MIGRATION_LOG.md`
+- Verify with:
+  - `bun run --cwd apps/web sync:acceptance:check`
+  - `bun run --cwd apps/web sync:smoke:all`
+- Rollback notes:
+  - remove the capsule docs, manifest, and acceptance check if the fork returns to ad hoc sync verification
+  - restore direct phase-script ownership if shared smoke infrastructure becomes unnecessary
+- Notes:
+  - 2026-03-26: Added capsule-oriented architecture and acceptance docs, plus a fork smoke manifest and acceptance-matrix consistency check, while keeping the existing `sync:phaseN:smoke` commands stable as wrappers.
 
 ## T3 Dev Runtime Branding
 
@@ -687,6 +721,7 @@ Copy this block for new entries:
   - 2026-03-24: Folded the red indicator styling into the same runtime-branding entry because it is part of the host-specific visual identity, not a separate feature.
   - 2026-03-26: Consolidated host-specific branding behind a shared resolver plus a server-side branding sidecar so the dev host now gets a dark red manifest, canonical favicon/apple-touch-icon responses, and a red splash/boot-shell treatment before any browser JS runs. The loader stayed a single component and now themes through a variant seam instead of a forked component copy.
   - 2026-03-26: Added a matching Vite dev-server branding adapter in `apps/web/src/fork/brandingVitePlugin.ts` so hosted dev sessions served through `devUrl` now get the same canonical manifest/icon aliases and pre-JS red HTML shell treatment as the production-style server path, instead of falling back to the generic blue public assets.
+  - 2026-03-26: Replaced the brittle class-chain selector for the visible `DEVELOP` badge with an explicit `data-slot="fork-stage-badge"` hook and moved web startup orchestration behind `apps/web/src/fork/bootstrap/installForkWebShell.ts` so future upstream shell changes can rebind one seam instead of rediscovering multiple startup sidecars.
 
 ## Fork Repository And Branch Safety Guardrails
 

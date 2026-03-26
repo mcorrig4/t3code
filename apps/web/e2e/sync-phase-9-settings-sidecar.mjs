@@ -1,15 +1,10 @@
+import { expect } from "./shared/assertions.mjs";
 import { chromium } from "playwright";
 
 const localWebUrl = process.env.T3_SYNC_LOCAL_WEB_URL?.trim() || "http://127.0.0.1:5734";
 const baseUrl = process.env.T3_SYNC_BASE_URL?.trim() || localWebUrl;
 const settingsUrl = new URL("/settings", baseUrl).toString();
-const APP_SETTINGS_STORAGE_KEY = "t3code:app-settings:v1";
-
-function expect(condition, message) {
-  if (!condition) {
-    throw new Error(message);
-  }
-}
+const FORK_SETTINGS_STORAGE_KEY = "t3code:fork-settings:v1";
 
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext();
@@ -20,7 +15,7 @@ try {
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.evaluate((storageKey) => {
     window.localStorage.removeItem(storageKey);
-  }, APP_SETTINGS_STORAGE_KEY);
+  }, FORK_SETTINGS_STORAGE_KEY);
   await page.goto(settingsUrl, { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle", { timeout: 20_000 }).catch(() => {});
 
@@ -46,7 +41,7 @@ try {
   const persistedAfterToggle = await page.evaluate((storageKey) => {
     const raw = window.localStorage.getItem(storageKey);
     return raw ? JSON.parse(raw) : null;
-  }, APP_SETTINGS_STORAGE_KEY);
+  }, FORK_SETTINGS_STORAGE_KEY);
   expect(
     persistedAfterToggle?.suppressCodexAppServerNotifications === true,
     "Codex notification suppression did not persist from the sidecar section.",
