@@ -45,13 +45,15 @@ Long term maintainability is a core priority. If you add new functionality, firs
 - During upstream sync work, branches and old commit hashes are evidence only. The unit of decision-making is the individual feature, bug fix, customization, or operational deviation.
 - Avoid commit-cherry-picking as the default sync strategy. Prefer manual reapplication, targeted patch extraction, or small feature branches built from the fresh upstream snapshot so our retained changes match the new upstream structure cleanly.
 - For fork-only settings UI, prefer a single injected sidecar section/component over scattering fork controls throughout the upstream settings page.
-- By default, fork-only settings should still persist through the canonical app settings store in `apps/web/src/appSettings.ts` so reset logic, migrations, tests, and runtime consumers stay unified.
-- Only introduce a separate local-storage key for fork settings when the data is truly sidecar-only and should not participate in normal app settings semantics, defaults, restores, or cross-feature coordination.
+- Upstream-equivalent settings should keep using the canonical app settings store in `apps/web/src/appSettings.ts`.
+- Truly fork-only settings should live in the dedicated fork settings store under `apps/web/src/fork/settings`, with migration/reset behavior composed through the fork settings sidecar seam instead of widening the canonical upstream settings model.
 - Preferred pattern:
-  - keep one canonical settings schema/store
+  - keep upstream-owned settings in the canonical schema/store
   - render fork-owned settings through a dedicated sidecar entry point such as `ForkSettingsSection`
+  - keep fork-only persistence, migration, and reset logic under `apps/web/src/fork/settings`
   - keep upstream-owned settings layout intact wherever practical
   - colocate fork-only runtime wiring behind small helpers/adapters instead of expanding upstream settings codepaths broadly
+- For fork-specific CSS overrides, tag the target element with a `data-slot` attribute and put the rule in `apps/web/src/overrides.css`. Never modify inline Tailwind classes in upstream components for fork-only styling.
 
 ## Repository Boundaries
 
