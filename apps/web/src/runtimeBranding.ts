@@ -1,24 +1,30 @@
-export const T3_DEV_HOSTNAME = "t3-dev.claude.do";
-export const T3_DEV_HOST_VARIANT = "t3-dev";
+import {
+  T3_DEV_HOSTNAME,
+  T3_DEV_HOST_VARIANT,
+  buildBrandingCssVariables,
+  resolveAppBranding,
+} from "@t3tools/shared/branding";
+
+export { T3_DEV_HOSTNAME, T3_DEV_HOST_VARIANT };
+
+export const APP_BOOT_THEME_COLOR = "#07101f";
+const BRANDING_STYLE_ELEMENT_ID = "t3-branding-vars";
 
 export interface RuntimeBranding {
   readonly hostVariant?: string;
-  readonly manifestPath?: string;
-  readonly appleTouchIconPath?: string;
-  readonly faviconPath?: string;
+  readonly themeColor: string;
 }
 
 export function resolveRuntimeBranding(hostname: string): RuntimeBranding {
-  if (hostname.trim().toLowerCase() !== T3_DEV_HOSTNAME) {
-    return {};
-  }
-
-  return {
-    hostVariant: T3_DEV_HOST_VARIANT,
-    manifestPath: "/manifest-t3-dev.webmanifest",
-    appleTouchIconPath: "/apple-touch-icon-dev.png",
-    faviconPath: "/favicon-dev.ico",
-  };
+  const branding = resolveAppBranding(hostname);
+  return branding.hostVariant
+    ? {
+        hostVariant: branding.hostVariant,
+        themeColor: branding.themeColor,
+      }
+    : {
+        themeColor: branding.themeColor,
+      };
 }
 
 export function applyRuntimeBranding(doc: Document, hostname: string): void {
@@ -30,22 +36,32 @@ export function applyRuntimeBranding(doc: Document, hostname: string): void {
     delete doc.documentElement.dataset.hostVariant;
   }
 
-  if (branding.manifestPath) {
-    setLinkHref(doc, 'link[rel="manifest"]', branding.manifestPath);
-  }
+  setMetaContent(doc, 'meta[name="theme-color"]', branding.themeColor);
+  setBrandingCssVariables(doc, hostname);
+}
 
-  if (branding.appleTouchIconPath) {
-    setLinkHref(doc, 'link[rel="apple-touch-icon"]', branding.appleTouchIconPath);
-  }
-
-  if (branding.faviconPath) {
-    setLinkHref(doc, 'link[rel="icon"]', branding.faviconPath);
-    setLinkHref(doc, 'link[rel="shortcut icon"]', branding.faviconPath);
+function setMetaContent(doc: Document, selector: string, content: string): void {
+  for (const meta of doc.querySelectorAll<HTMLMetaElement>(selector)) {
+    meta.setAttribute("content", content);
   }
 }
 
-function setLinkHref(doc: Document, selector: string, href: string): void {
-  for (const link of doc.querySelectorAll<HTMLLinkElement>(selector)) {
-    link.setAttribute("href", href);
+function setBrandingCssVariables(doc: Document, hostname: string): void {
+  const branding = resolveAppBranding(hostname);
+  const styleTag = getOrCreateBrandingStyleTag(doc);
+  styleTag.textContent = `:root{${Object.entries(buildBrandingCssVariables(branding))
+    .map(([name, value]) => `${name}:${value};`)
+    .join("")}}`;
+}
+
+function getOrCreateBrandingStyleTag(doc: Document): HTMLStyleElement {
+  const existing = doc.getElementById(BRANDING_STYLE_ELEMENT_ID);
+  if (existing instanceof HTMLStyleElement) {
+    return existing;
   }
+
+  const styleTag = doc.createElement("style");
+  styleTag.id = BRANDING_STYLE_ELEMENT_ID;
+  doc.head.append(styleTag);
+  return styleTag;
 }

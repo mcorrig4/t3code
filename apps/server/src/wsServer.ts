@@ -92,6 +92,12 @@ import {
   toBadJsonError,
 } from "./notifications/http.ts";
 import { WebPushRequestError } from "./notifications/types.ts";
+import {
+  applyForkBrandingToHtml,
+  getBrandingAssetRelativePath,
+  isForkBrandingManifestPath,
+  renderForkBrandingManifest,
+} from "./fork/branding";
 
 /**
  * ServerShape - Service API for server lifecycle control.
@@ -672,6 +678,39 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         }
 
         const staticRoot = path.resolve(staticDir);
+        if (isForkBrandingManifestPath(url.pathname)) {
+          respond(
+            200,
+            { "Content-Type": "application/manifest+json; charset=utf-8" },
+            renderForkBrandingManifest(req),
+          );
+          return;
+        }
+
+        const brandingAssetRelativePath = getBrandingAssetRelativePath(url.pathname, req);
+        if (brandingAssetRelativePath) {
+          const brandingAssetPath = path.resolve(staticRoot, brandingAssetRelativePath);
+          const brandingAssetInfo = yield* fileSystem
+            .stat(brandingAssetPath)
+            .pipe(Effect.catch(() => Effect.succeed(null)));
+          if (!brandingAssetInfo || brandingAssetInfo.type !== "File") {
+            respond(404, { "Content-Type": "text/plain" }, "Not Found");
+            return;
+          }
+
+          const brandingContentType = Mime.getType(brandingAssetPath) ?? "application/octet-stream";
+          const brandingData = yield* fileSystem
+            .readFile(brandingAssetPath)
+            .pipe(Effect.catch(() => Effect.succeed(null)));
+          if (!brandingData) {
+            respond(500, { "Content-Type": "text/plain" }, "Internal Server Error");
+            return;
+          }
+
+          respond(200, { "Content-Type": brandingContentType }, brandingData);
+          return;
+        }
+
         const staticRequestPath = url.pathname === "/" ? "/index.html" : url.pathname;
         const rawStaticRelativePath = staticRequestPath.replace(/^[/\\]+/, "");
         const hasRawLeadingParentSegment = rawStaticRelativePath.startsWith("..");
@@ -720,7 +759,11 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
             respond(404, { "Content-Type": "text/plain" }, "Not Found");
             return;
           }
-          respond(200, { "Content-Type": "text/html; charset=utf-8" }, indexData);
+          respond(
+            200,
+            { "Content-Type": "text/html; charset=utf-8" },
+            applyForkBrandingToHtml(Buffer.from(indexData).toString("utf8"), req),
+          );
           return;
         }
 
@@ -730,6 +773,14 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
           .pipe(Effect.catch(() => Effect.succeed(null)));
         if (!data) {
           respond(500, { "Content-Type": "text/plain" }, "Internal Server Error");
+          return;
+        }
+        if (contentType.includes("text/html")) {
+          respond(
+            200,
+            { "Content-Type": contentType },
+            applyForkBrandingToHtml(Buffer.from(data).toString("utf8"), req),
+          );
           return;
         }
         respond(200, { "Content-Type": contentType }, data);

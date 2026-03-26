@@ -4,6 +4,7 @@ import babel from "@rolldown/plugin-babel";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { defineConfig } from "vite";
 import pkg from "./package.json" with { type: "json" };
+import { t3ForkBrandingVitePlugin } from "./src/fork/brandingVitePlugin";
 import { renderT3LoaderMarkup } from "./src/components/loading/renderT3LoaderMarkup";
 
 const port = Number(process.env.PORT ?? 5733);
@@ -59,6 +60,7 @@ function t3BootShellPlugin() {
 
 export default defineConfig({
   plugins: [
+    t3ForkBrandingVitePlugin(),
     t3BootShellPlugin(),
     tanstackRouter(),
     react(),
