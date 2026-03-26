@@ -31,6 +31,7 @@
 - [ ] Add swipe-from-the-left gesture to slide open the sidebar nav on mobile PWA
 - [ ] Add sidebar toggle button into settings page so the sidebar can be opened there when it autohides on mobile
 - [ ] Add settings option to open the user debug panel, like toggling `?debugUserInput=1`
+- [ ] Fix ability to reopen the plan side panel after closing it
 - [ ] Add ability to rename project folders (local storage or synced)
 - [ ] Fix mobile zoom issue when adding a new project
 - [ ] Fix mobile zoom issue when renaming a chat
