@@ -8,6 +8,7 @@ import {
   resolveSidebarNewThreadEnvMode,
   resolveThreadRowClassName,
   resolveThreadStatusPill,
+  shouldOpenMultiSelectThreadMenu,
   shouldClearThreadSelectionOnMouseDown,
   sortProjectsForSidebar,
   sortThreadsForSidebar,
@@ -92,6 +93,23 @@ describe("resolveSidebarNewThreadEnvMode", () => {
         defaultEnvMode: "worktree",
       }),
     ).toBe("local");
+  });
+});
+
+describe("shouldOpenMultiSelectThreadMenu", () => {
+  it("uses the single-thread menu when the clicked thread is not part of the selection", () => {
+    expect(
+      shouldOpenMultiSelectThreadMenu(
+        new Set([ThreadId.makeUnsafe("thread-selected")]),
+        ThreadId.makeUnsafe("thread-other"),
+      ),
+    ).toBe(false);
+  });
+
+  it("uses the multi-select menu when the clicked thread is part of the active selection", () => {
+    const threadId = ThreadId.makeUnsafe("thread-selected");
+
+    expect(shouldOpenMultiSelectThreadMenu(new Set([threadId]), threadId)).toBe(true);
   });
 });
 

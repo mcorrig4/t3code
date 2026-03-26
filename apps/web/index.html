@@ -11,20 +11,24 @@
     <meta name="theme-color" media="(prefers-color-scheme: light)" content="#07101f" />
     <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#07101f" />
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
+    <link rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
+    <!-- app-branding-vars -->
     <style>
       html {
         width: 100%;
         height: 100%;
         overflow: hidden;
         overscroll-behavior: none;
-        background-color: #07101f;
+        background-color: var(--t3-boot-background, #07101f);
         background-image: radial-gradient(
           ellipse at 50% 48%,
-          #0c1a35 0%,
-          #07101f 38%,
-          #030810 100%
+          var(--t3-boot-start, #0c1a35) 0%,
+          var(--t3-boot-mid, #07101f) 38%,
+          var(--t3-boot-end, #030810) 100%
         );
       }
 

@@ -1,8 +1,9 @@
 /* Local, intentionally brittle UI tweaks that we want to keep isolated from upstream edits. */
 
 [data-mobile="true"][data-slot="sidebar"] {
-  max-width: 93vw;
-  border-radius: 12px 12px 28px 12px;
+  max-width: 92vw;
+  border-radius: 12px 12px 24px 12px;
+  corner-shape: squircle;
 }
 
 [data-projects-heading] {
@@ -118,21 +119,23 @@
   body::before {
     content: "";
     position: fixed;
-    inset: 0;
+    inset: env(safe-area-inset-top, 0px) 0 0 0;
     z-index: 40;
     pointer-events: none;
-    border-radius: 12px 12px 28px 28px;
-    box-shadow: 0 0 0 100vmax #07101f;
+    border-radius: 12px 12px 24px 24px;
+    corner-shape: squircle;
+    box-shadow: 0 0 0 100vmax var(--t3-boot-mid, #07101f);
   }
 
   /* Dual-layer glass-edge border matching iOS screen bezel */
   html::after {
     content: "";
     position: fixed;
-    inset: 0;
+    inset: env(safe-area-inset-top, 0px) 0 0 0;
     z-index: 42;
     pointer-events: none;
-    border-radius: 12px 12px 28px 28px;
+    border-radius: 12px 12px 24px 24px;
+    corner-shape: squircle;
     box-shadow:
       inset 0 0 0 0.5px color-mix(in srgb, var(--color-white) 45%, transparent),
       inset 0 0 0 1px color-mix(in srgb, var(--color-black) 15%, transparent);
@@ -145,7 +148,8 @@
   }
 
   [data-slot="sheet-backdrop"] {
-    border-radius: 12px 12px 28px 28px;
+    border-radius: 12px 12px 24px 24px;
+    corner-shape: squircle;
   }
 
   /* Glass-edge border on sidebar right edge */
@@ -186,5 +190,36 @@
     [data-slot="sidebar-menu-button"] {
     border-color: color-mix(in srgb, var(--color-white) 12%, transparent);
     box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-white) 6%, transparent);
+  }
+
+  /* Stack chat title and project name vertically to give the title more room */
+  [data-slot="chat-title-group"] {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+  }
+
+  [data-slot="chat-title-group"] > h2 {
+    width: 100%;
+  }
+
+  [data-slot="chat-title-group"] > [data-slot="badge"] {
+    border: none;
+    background: transparent;
+    padding: 0;
+    height: auto;
+    min-height: 0;
+    min-width: 0;
+    font-size: 0.55rem;
+    line-height: 1;
+    opacity: 0.5;
+  }
+}
+
+/* Always show copy buttons on touch / mobile devices */
+@media (hover: none) {
+  .chat-markdown .chat-markdown-copy-button {
+    opacity: 1;
+    pointer-events: auto;
   }
 }

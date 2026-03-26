@@ -6,6 +6,7 @@ import path from "node:path";
 import { ApprovalRequestId, ThreadId } from "@t3tools/contracts";
 
 import {
+  buildCodexAppServerCommandArgs,
   buildCodexInitializeParams,
   CODEX_DEFAULT_MODE_DEVELOPER_INSTRUCTIONS,
   CODEX_PLAN_MODE_DEVELOPER_INSTRUCTIONS,
@@ -220,6 +221,22 @@ describe("normalizeCodexModelSlug", () => {
   it("keeps non-aliased models as-is", () => {
     expect(normalizeCodexModelSlug("gpt-5.2-codex")).toBe("gpt-5.2-codex");
     expect(normalizeCodexModelSlug("gpt-5.2")).toBe("gpt-5.2");
+  });
+});
+
+describe("buildCodexAppServerCommandArgs", () => {
+  it("runs app-server without overrides by default", () => {
+    expect(buildCodexAppServerCommandArgs()).toEqual(["app-server"]);
+  });
+
+  it("appends trimmed config overrides after the app-server subcommand", () => {
+    expect(buildCodexAppServerCommandArgs([" notify=[] ", "", 'model="gpt-5.4"'])).toEqual([
+      "app-server",
+      "-c",
+      "notify=[]",
+      "-c",
+      'model="gpt-5.4"',
+    ]);
   });
 });
 

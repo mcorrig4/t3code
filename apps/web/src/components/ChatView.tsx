@@ -2626,6 +2626,12 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
       beginSendPhase("sending-turn");
       const turnAttachments = await turnAttachmentsPromise;
+      logCodexSessionOverrideBreadcrumb({
+        threadId: threadIdForSend,
+        runtimeMode,
+        interactionMode,
+        trigger: "send-message",
+      });
       await api.orchestration.dispatchCommand({
         type: "thread.turn.start",
         commandId: newCommandId(),
@@ -2972,6 +2978,41 @@ export default function ChatView({ threadId }: ChatViewProps) {
     setActivePendingUserInputQuestionIndex(Math.max(activePendingProgress.questionIndex - 1, 0));
   }, [activePendingProgress, setActivePendingUserInputQuestionIndex]);
 
+  const logCodexSessionOverrideBreadcrumb = useCallback(
+    (input: {
+      threadId: string;
+      runtimeMode: RuntimeMode;
+      interactionMode: ProviderInteractionMode;
+      trigger: "send-message" | "plan-follow-up" | "implement-plan-new-thread";
+    }) => {
+      if (selectedProvider !== "codex") {
+        return;
+      }
+
+      logUserInputDebug({
+        level: settings.suppressCodexAppServerNotifications ? "info" : "warning",
+        stage: "codex-session-overrides",
+        message: settings.suppressCodexAppServerNotifications
+          ? "Dispatching Codex turn with native-notification suppression enabled"
+          : "Dispatching Codex turn without native-notification suppression",
+        threadId: input.threadId,
+        detail: JSON.stringify(
+          {
+            trigger: input.trigger,
+            provider: selectedProvider,
+            suppressCodexAppServerNotifications: settings.suppressCodexAppServerNotifications,
+            runtimeMode: input.runtimeMode,
+            interactionMode: input.interactionMode,
+            providerOptions: providerOptionsForDispatch ?? null,
+          },
+          null,
+          2,
+        ),
+      });
+    },
+    [providerOptionsForDispatch, selectedProvider, settings.suppressCodexAppServerNotifications],
+  );
+
   const onSubmitPlanFollowUp = useCallback(
     async ({
       text,
@@ -3035,6 +3076,12 @@ export default function ChatView({ threadId }: ChatViewProps) {
         // while the same-thread implementation turn is starting.
         setComposerDraftInteractionMode(threadIdForSend, nextInteractionMode);
 
+        logCodexSessionOverrideBreadcrumb({
+          threadId: threadIdForSend,
+          runtimeMode,
+          interactionMode: nextInteractionMode,
+          trigger: "plan-follow-up",
+        });
         await api.orchestration.dispatchCommand({
           type: "thread.turn.start",
           commandId: newCommandId(),
@@ -3092,6 +3139,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       isConnecting,
       isSendBusy,
       isServerThread,
+      logCodexSessionOverrideBreadcrumb,
       persistThreadSettingsForNextTurn,
       resetSendPhase,
       runtimeMode,
@@ -3159,6 +3207,12 @@ export default function ChatView({ threadId }: ChatViewProps) {
         createdAt,
       })
       .then(() => {
+        logCodexSessionOverrideBreadcrumb({
+          threadId: nextThreadId,
+          runtimeMode,
+          interactionMode: "default",
+          trigger: "implement-plan-new-thread",
+        });
         return api.orchestration.dispatchCommand({
           type: "thread.turn.start",
           commandId: newCommandId(),
@@ -3221,6 +3275,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
     isConnecting,
     isSendBusy,
     isServerThread,
+    logCodexSessionOverrideBreadcrumb,
     navigate,
     resetSendPhase,
     runtimeMode,

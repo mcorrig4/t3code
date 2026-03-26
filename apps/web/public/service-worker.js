@@ -1,19 +1,12 @@
-const APP_SHELL_CACHE = "t3code-app-shell-v3";
+const APP_SHELL_CACHE = "t3code-app-shell-v5";
 const APP_SHELL_URL = "/";
 const APP_SHELL_ASSETS = [
   APP_SHELL_URL,
   "/manifest.webmanifest",
-  "/manifest-t3-dev.webmanifest",
   "/apple-touch-icon.png",
-  "/apple-touch-icon-dev.png",
   "/favicon.ico",
-  "/favicon-dev.ico",
   "/favicon-32x32.png",
-  "/favicon-dev-32x32.png",
   "/favicon-16x16.png",
-  "/favicon-dev-16x16.png",
-  "/icon-192.png",
-  "/icon-512.png",
   "/sw.js",
   "/service-worker.js",
 ];
@@ -165,9 +158,11 @@ self.addEventListener("notificationclick", (event) => {
         }
 
         await client.focus();
-        if ("navigate" in client) {
-          await client.navigate(targetUrl.href);
-        }
+        client.postMessage({
+          type: "notification-navigate",
+          url: targetUrl.pathname + targetUrl.search,
+          threadId: event.notification?.data?.threadId ?? null,
+        });
         return;
       }
 

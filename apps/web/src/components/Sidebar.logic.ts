@@ -60,6 +60,13 @@ export function shouldClearThreadSelectionOnMouseDown(target: HTMLElement | null
   return !target.closest(THREAD_SELECTION_SAFE_SELECTOR);
 }
 
+export function shouldOpenMultiSelectThreadMenu(
+  selectedThreadIds: ReadonlySet<Thread["id"]>,
+  threadId: Thread["id"],
+): boolean {
+  return selectedThreadIds.size > 0 && selectedThreadIds.has(threadId);
+}
+
 export function resolveSidebarNewThreadEnvMode(input: {
   requestedEnvMode?: SidebarNewThreadEnvMode;
   defaultEnvMode: SidebarNewThreadEnvMode;

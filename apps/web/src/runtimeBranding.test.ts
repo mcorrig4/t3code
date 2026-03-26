@@ -6,9 +6,7 @@ describe("resolveRuntimeBranding", () => {
   it("uses the red PWA assets on t3-dev", () => {
     expect(resolveRuntimeBranding("t3-dev.claude.do")).toEqual({
       hostVariant: T3_DEV_HOST_VARIANT,
-      manifestPath: "/manifest-t3-dev.webmanifest",
-      appleTouchIconPath: "/apple-touch-icon-dev.png",
-      faviconPath: "/favicon-dev.ico",
+      themeColor: "#170308",
     });
   });
 
@@ -17,7 +15,7 @@ describe("resolveRuntimeBranding", () => {
   });
 
   it("leaves other hosts unchanged", () => {
-    expect(resolveRuntimeBranding("t3.claude.do")).toEqual({});
-    expect(resolveRuntimeBranding("localhost")).toEqual({});
+    expect(resolveRuntimeBranding("t3.claude.do")).toEqual({ themeColor: "#07101f" });
+    expect(resolveRuntimeBranding("localhost")).toEqual({ themeColor: "#07101f" });
   });
 });

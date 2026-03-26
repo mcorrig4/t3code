@@ -60,7 +60,7 @@ Copy this block for new entries:
 
 - Status: active
 - First added: 2026-03-24
-- Last updated: 2026-03-24
+- Last updated: 2026-03-25
 - Owners: T3 Code fork
 - Upstream impact: low
 - Areas: Codex provider launch behavior, T3 settings UI, fork-only app-server overrides
@@ -97,6 +97,7 @@ Copy this block for new entries:
 - Notes:
   - 2026-03-24: Added a browser-scoped T3 setting that maps to a Codex app-server-only `-c notify=[]` override, intentionally leaving `CODEX_HOME` and `~/.codex/config.toml` unchanged.
   - 2026-03-25: Moved the fork-owned settings control into `ForkSettingsSection` so the upstream settings route only mounts the sidecar seam instead of owning the Codex-specific UI directly.
+  - 2026-03-25: Fixed a regression where the web app reintroduced `codex.configOverrides`, but the shared provider-options schema and Codex launch path still ignored that field, so `notify=[]` never reached the spawned `codex app-server` process.
 
 ## Standardized Enhancement Ledger Filename
 
@@ -189,7 +190,7 @@ Copy this block for new entries:
 
 - Status: active
 - First added: 2026-03-24
-- Last updated: 2026-03-25
+- Last updated: 2026-03-25 (squircle corners + bottom radius tuning)
 - Owners: T3 Code fork
 - Upstream impact: low
 - Areas: mobile PWA shell styling, iPhone standalone presentation, fork-only CSS overrides
@@ -213,7 +214,8 @@ Copy this block for new entries:
   - `bun fmt`
   - `bun lint`
   - `bun typecheck`
-  - on an iPhone-installed PWA, open the keyboard and confirm the app surface shows subtle top-corner rounding, stronger bottom-corner rounding, and a fully visible branch/worktree row
+  - on an iPhone-installed PWA, open the keyboard and confirm the app surface shows subtle top-corner rounding, slightly reduced bottom-corner rounding (22px squircle), and a fully visible branch/worktree row
+  - in a browser with `corner-shape` support (Chrome 138+, Safari TP), verify corners use smooth superellipse curves rather than circular arcs
 - Rollback notes:
   - remove the standalone shell overlay and chat-stack spacing overrides from `apps/web/src/overrides.css`
   - remove the standalone chat-input and branch-toolbar data hooks if the override is no longer needed
@@ -222,12 +224,13 @@ Copy this block for new entries:
   - 2026-03-24: Replaced the initial standalone/mobile `#root` clipping experiment with a non-clipping shell overlay, subtle top-corner rounding, stronger bottom-corner rounding, and extra standalone bottom spacing for the composer stack so the branch/worktree toolbar remains visible during iOS keyboard transitions.
   - 2026-03-24: Temporarily rolled back the rounded-shell experiment to confirm the missing branch/worktree controls were caused by a separate issue, then restored the non-clipping visual shell overlay after confirming the control regression persisted without it.
   - 2026-03-25: Added a second standalone-only overlay layer in `apps/web/src/overrides.css` that masks to the bottom safe-area band and combines light and dark gradients plus inset highlights so the lower shell edge reads like an iOS-style glass shimmer instead of a flat border.
+  - 2026-03-25: Added `corner-shape: squircle` to the app bezel (`body::before`), glass-edge border (`html::after`), sheet backdrop, and mobile sidebar so all rounded corners use iOS-style superellipse curves instead of circular arcs. Reduced the bottom corner radius from `28px` to `22px` on all four elements to better match the iOS keyboard's top-edge radius when the keyboard is open. This is a progressive enhancement — browsers without `corner-shape` support render standard circular `border-radius` as before.
 
 ## Root-Scoped PWA Install Behavior
 
 - Status: active
 - First added: 2026-03-16
-- Last updated: 2026-03-16
+- Last updated: 2026-03-26
 - Owners: T3 Code fork
 - Upstream impact: medium
 - Areas: web app install metadata, iPhone Home Screen behavior, offline/app-shell navigation
@@ -235,18 +238,29 @@ Copy this block for new entries:
 - Files:
   - `apps/web/index.html`
   - `apps/web/public/manifest.webmanifest`
+  - `apps/web/public/service-worker.js`
   - `apps/web/public/sw.js`
+  - `apps/server/src/fork/branding.ts`
+  - `apps/server/src/wsServer.ts`
+  - `apps/server/src/wsServer.test.ts`
   - `apps/web/src/main.tsx`
+  - `apps/web/src/runtimeBranding.ts`
   - `apps/web/src/pwa.ts`
   - `apps/web/src/pwa.test.ts`
+  - `packages/shared/src/branding.ts`
+  - `packages/shared/src/branding.test.ts`
+  - `packages/shared/package.json`
 - Runtime touchpoints:
   - `t3.claude.do`
+  - `t3-dev.claude.do`
   - Home Screen installs on iPhone/iPad
   - app routes under `/` including `/$threadId`
+  - canonical asset routes `/manifest.webmanifest`, `/favicon.ico`, `/favicon-32x32.png`, `/favicon-16x16.png`, and `/apple-touch-icon.png`
 - If this breaks, look for:
   - tapping a thread from the installed iPhone app opens Safari or an external web view
   - deep links to chat/session routes stop feeling like in-app navigation
   - install behavior changes after manifest or service-worker edits
+  - the dev host serving production-colored splash metadata or production icons
 - Verify with:
   - `bun fmt`
   - `bun lint`
@@ -259,6 +273,42 @@ Copy this block for new entries:
   - remove and re-add the Home Screen install on iPhone so Safari drops cached install metadata
 - Notes:
   - 2026-03-16: Added root-scoped manifest metadata, iOS standalone meta tags, and a minimal service worker registration path.
+  - 2026-03-25: Aligned the dev-host manifest `background_color` and `theme_color` with the shared dark boot-shell background (`#07101f`) and updated runtime branding to keep `meta[name="theme-color"]` in sync when the dev manifest is active, reducing the bright white pre-splash flash before the loader appears.
+  - 2026-03-25: Tightened the boot-shell exit timing from `520ms` to `320ms` for a faster handoff after the minimum boot delay, while keeping `APP_BOOT_MIN_DURATION_MS` at `800ms`.
+  - 2026-03-26: Reverted the iOS standalone status bar meta back to `default` after the `black-translucent` experiment caused the installed app shell to underlap the status bar and expose a bottom safe-area gap on iPhone. The dark shell/backdrop remains driven by the boot background and theme color instead of relying on translucent standalone chrome.
+  - 2026-03-26: Updated the standalone bezel overlay in `apps/web/src/overrides.css` to respect only the top iPhone safe-area inset while continuing to extend flush to the left, right, and bottom edges. This preserves the restored top alignment under `apple-mobile-web-app-status-bar-style=default` without reintroducing the unwanted bottom gap that appeared when the overlay also inset from the bottom edge.
+  - 2026-03-26: Replaced the client-side dev-manifest swap with a host-aware server sidecar that serves a single canonical `/manifest.webmanifest` route and rewrites the initial HTML shell with host-specific theme metadata before JS runs. The same sidecar now serves canonical favicon and apple-touch-icon routes per host, and the service worker caches those stable routes instead of environment-specific filenames.
+  - 2026-03-26: Split the dev-host app naming inside the shared branding sidecar so manifest `name` remains `T3 Code (Dev)` while manifest `short_name` becomes `T3 Dev`, keeping the canonical install metadata centralized in `packages/shared/src/branding.ts` without adding runtime hostname branches elsewhere.
+
+## Root Repo Check Exclusion For Nested Claude Worktrees
+
+- Status: active
+- First added: 2026-03-25
+- Last updated: 2026-03-25
+- Owners: T3 Code fork
+- Upstream impact: none
+- Areas: root developer tooling, nested local worktree hygiene
+- Why this exists: root-level `bun fmt` and `bun lint` were recursively picking up duplicate files under `./.claude/worktrees`, creating duplicate diagnostics when running checks from the main repository root.
+- Files:
+  - `.gitignore`
+  - `.eslintignore`
+- Runtime touchpoints:
+  - `bun fmt` from the main repo root
+  - `bun lint` from the main repo root
+  - nested Claude-managed worktrees under `./.claude/worktrees`
+- If this breaks, look for:
+  - root `bun fmt` or `bun lint` starts reporting duplicate findings from `.claude/worktrees`
+  - a nested worktree stops linting or formatting its own files when commands are run from inside that worktree root
+- Verify with:
+  - `bun fmt`
+  - `bun lint`
+  - `bun typecheck`
+  - from `/home/claude/code/t3code`, confirm `bun lint` no longer reports duplicated warnings under `.claude/worktrees`
+  - from a nested Claude worktree root, confirm `bun lint` still checks that worktree normally
+- Rollback notes:
+  - remove `/.claude/worktrees/` from `.gitignore` and `.eslintignore`
+- Notes:
+  - 2026-03-25: Added a root-relative ignore for `./.claude/worktrees/` so repository-root formatter/linter runs skip nested cloned worktrees, while direct runs inside a nested worktree still operate on that worktree because the ignore stays relative to the current repo root.
 
 ## Web Push Notifications Sidecar
 
@@ -581,48 +631,62 @@ Copy this block for new entries:
   - 2026-03-25: Refactored the debug UI into a dedicated `UserInputDebugSidecar` mount so breadcrumb capture, the floating panel, and global browser error listeners can stay isolated from the rest of the root shell while still accepting explicit user-input event breadcrumbs from `ChatView` and domain-event routing.
   - 2026-03-25: Added a Settings -> Advanced -> Diagnostics control that opens the same sidecar-backed panel without requiring the `debugUserInput` query param.
   - 2026-03-25: Moved the Diagnostics settings control into `ForkSettingsSection` so the upstream settings page only mounts the fork-owned sidecar section instead of hosting a dedicated debug row directly.
+  - 2026-03-26: Added Codex session-override breadcrumbs in `ChatView` so the sidecar records the exact `providerOptions` payload, suppression flag, runtime mode, and interaction mode sent with each `thread.turn.start`, making it easier to verify whether `notify=[]` is present before debugging server launch behavior.
 
 ## T3 Dev Runtime Branding
 
 - Status: active
 - First added: 2026-03-16
-- Last updated: 2026-03-24
+- Last updated: 2026-03-26
 - Owners: T3 Code fork
 - Upstream impact: low
 - Areas: development hostname identity, dev PWA assets, host-variant styling, environment clarity
 - Why this exists: the fork runs a dedicated dev host at `t3-dev.claude.do`, and it needs visibly distinct branding so development sessions are hard to confuse with production, including dedicated PWA assets and a red "DEVELOP" marker in the sidebar surface.
 - Files:
   - `ENHANCEMENTS.md`
+  - `apps/server/src/fork/branding.ts`
+  - `apps/server/src/wsServer.ts`
+  - `apps/server/src/wsServer.test.ts`
   - `apps/web/src/runtimeBranding.ts`
   - `apps/web/src/runtimeBranding.test.ts`
   - `apps/web/src/main.tsx`
-  - `apps/web/public/manifest-t3-dev.webmanifest`
   - `apps/web/public/apple-touch-icon-dev.png`
   - `apps/web/public/favicon-dev-16x16.png`
   - `apps/web/public/favicon-dev-32x32.png`
   - `apps/web/public/favicon-dev.ico`
+  - `apps/web/index.html`
+  - `apps/web/src/components/loading/T3LoaderMarkup.tsx`
+  - `apps/web/src/index.css`
   - `apps/web/src/overrides.css`
+  - `packages/shared/src/branding.ts`
+  - `packages/shared/src/branding.test.ts`
+  - `packages/shared/package.json`
 - Runtime touchpoints:
   - `t3-dev.claude.do`
   - dev PWA installs and icons
+  - dev boot shell, splash screen, and dark app background
   - `data-host-variant="t3-dev"`
   - the visible "DEVELOP" badge styling in the sidebar surface
 - If this breaks, look for:
-  - the dev host reusing production favicon or manifest assets
+  - the dev host reusing production favicon, manifest, or apple-touch-icon assets
   - the dev surface no longer showing an obvious visual distinction from production
+  - the dev splash/boot shell falling back to the production blue palette instead of the dark red variant
   - upstream UI refactors breaking the host-variant badge selector in `apps/web/src/overrides.css`
 - Verify with:
   - `/home/claude/.bun/bin/bun fmt`
   - `/home/claude/.bun/bin/bun lint`
   - `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
-  - open `t3-dev.claude.do` and confirm the dev-specific favicon/manifest assets load
+  - open `t3-dev.claude.do` and confirm `/manifest.webmanifest`, `/favicon.ico`, and `/apple-touch-icon.png` all resolve to the dev branding variant
+  - confirm the dev boot shell and loader use the dark red palette instead of the production blue palette
   - confirm the UI shows the red "DEVELOP" marker while production does not
 - Rollback notes:
-  - revert the runtime branding wiring and dev asset overrides listed above
-  - if only the badge styling is undesirable, remove the `data-host-variant="t3-dev"` overrides but keep the dev manifest/icon split
+  - revert the host-aware branding sidecar and dev asset overrides listed above
+  - if only the badge styling is undesirable, remove the `data-host-variant="t3-dev"` overrides but keep the canonical host-aware asset routing
 - Notes:
   - 2026-03-16: Added the initial dev host branding asset split.
   - 2026-03-24: Folded the red indicator styling into the same runtime-branding entry because it is part of the host-specific visual identity, not a separate feature.
+  - 2026-03-26: Consolidated host-specific branding behind a shared resolver plus a server-side branding sidecar so the dev host now gets a dark red manifest, canonical favicon/apple-touch-icon responses, and a red splash/boot-shell treatment before any browser JS runs. The loader stayed a single component and now themes through a variant seam instead of a forked component copy.
+  - 2026-03-26: Added a matching Vite dev-server branding adapter in `apps/web/src/fork/brandingVitePlugin.ts` so hosted dev sessions served through `devUrl` now get the same canonical manifest/icon aliases and pre-JS red HTML shell treatment as the production-style server path, instead of falling back to the generic blue public assets.
 
 ## Fork Repository And Branch Safety Guardrails
 
@@ -731,3 +795,69 @@ Older fork-specific changes that predate this ledger should be added here over t
   - if upstream adds native monorepo-aware favicon discovery, prefer that and drop this compatibility file if it becomes redundant
 - Notes:
   - 2026-03-23: Added a repo-root `favicon.svg` by copying the existing T3 production logo so the current sidebar detector can resolve an icon for the monorepo root without widening the server search rules.
+  - 2026-03-25: Restored `favicon.svg` at repo root after it was lost (recovered from git history via commit `76af7b5b`).
+
+## Mobile-visible copy and action buttons
+
+- Status: active
+- First added: 2026-03-25
+- Last updated: 2026-03-25
+- Owners: T3 Code fork
+- Upstream impact: low
+- Areas: chat message UI, mobile/touch UX
+- Why this exists: upstream copy and revert buttons on user messages (and copy buttons on code blocks) only appear on hover, which is inaccessible on mobile/touch devices. This enhancement makes them always visible on small screens and touch-only devices, and left-aligns the user message action buttons.
+- Files:
+  - `apps/web/src/components/chat/MessagesTimeline.tsx`
+  - `apps/web/src/overrides.css`
+- Runtime touchpoints:
+  - user message copy/revert button row in the chat timeline
+  - code block copy button in assistant markdown messages
+- If this breaks, look for:
+  - copy/revert buttons invisible on mobile after upstream sync
+  - buttons appearing right-aligned again after upstream changes to `MessagesTimeline.tsx`
+  - code block copy button not visible on touch devices
+- Verify with:
+  - open the app on a mobile device or use browser devtools touch emulation; copy and revert buttons should be visible without hovering
+  - on desktop, buttons should still appear only on hover
+- Rollback notes:
+  - in `MessagesTimeline.tsx`, remove `max-sm:opacity-100` from the action button container div
+  - in `overrides.css`, remove the `@media (hover: none)` block for `.chat-markdown-copy-button`
+  - in `MessagesTimeline.tsx`, change `justify-start` back to `justify-end` on the action button container
+- Notes:
+  - 2026-03-25: Initial implementation. User message buttons use Tailwind `max-sm:opacity-100` (width-based). Code block buttons use `@media (hover: none)` (capability-based, catches tablets too). Action buttons left-aligned.
+
+## Thread sidebar overflow sidecar
+
+- Status: active
+- First added: 2026-03-25
+- Last updated: 2026-03-25
+- Owners: T3 Code fork
+- Upstream impact: low
+- Areas: thread sidebar rows, context menu reachability, mobile/touch UX
+- Why this exists: upstream thread actions were only reachable by right-clicking a thread row, which makes the menu undiscoverable on touch devices and awkward in the browser. This fork adds a sidecar-owned overflow trigger after the timestamp that opens the exact existing thread context menu without forking the menu contents.
+- Files:
+  - `apps/web/src/components/Sidebar.tsx`
+  - `apps/web/src/components/Sidebar.logic.ts`
+  - `apps/web/src/components/Sidebar.logic.test.ts`
+  - `apps/web/src/components/sidebar/ForkThreadContextMenuButton.tsx`
+  - `apps/web/src/components/sidebar/ForkThreadContextMenuButton.test.tsx`
+- Runtime touchpoints:
+  - thread rows in the left sidebar
+  - single-thread and multi-select thread context menu entry points
+- If this breaks, look for:
+  - the overflow button disappearing after upstream sidebar row markup or group class changes
+  - the button navigating into the thread instead of opening the context menu
+  - a selected thread opening the single-thread menu instead of the bulk menu
+- Verify with:
+  - `/home/claude/.bun/bin/bun fmt`
+  - `/home/claude/.bun/bin/bun lint`
+  - `env PATH="/home/claude/.bun/bin:$PATH" /home/claude/.bun/bin/bun typecheck`
+  - on desktop, hover a thread row and confirm the button appears after the timestamp and opens the existing context menu
+  - in a mobile viewport or touch emulation, confirm the button stays visible without hover and still opens the same menu
+  - create a multi-selection and confirm the button on a selected row opens the bulk menu instead of navigating
+- Rollback notes:
+  - remove `ForkThreadContextMenuButton` from `Sidebar.tsx`
+  - delete `ForkThreadContextMenuButton.tsx` and its test if the fork no longer needs a sidecar trigger
+  - keep upstream right-click behavior intact unless replacing it with another shared trigger path
+- Notes:
+  - 2026-03-25: Added a fork-owned thread overflow button mounted from `Sidebar.tsx`, with menu ownership still centralized in the existing sidebar handlers and multi-select routing preserved through a small logic helper.

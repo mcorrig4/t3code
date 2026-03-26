@@ -401,11 +401,13 @@ async function rewriteKeybindingsAndWaitForPush(
 async function requestPath(
   port: number,
   requestPath: string,
-): Promise<{ statusCode: number; body: string }> {
+  headers?: Http.OutgoingHttpHeaders,
+): Promise<{ statusCode: number; body: string; headers: Http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
     const req = Http.request(
       {
         hostname: "127.0.0.1",
+        headers,
         port,
         path: requestPath,
         method: "GET",
@@ -419,6 +421,7 @@ async function requestPath(
           resolve({
             statusCode: res.statusCode ?? 0,
             body: Buffer.concat(chunks).toString("utf8"),
+            headers: res.headers,
           });
         });
       },
@@ -662,6 +665,81 @@ describe("WebSocket Server", () => {
     const response = await fetch(`http://127.0.0.1:${port}/`);
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("static-root");
+  });
+
+  it("serves a host-aware manifest for the dev host", async () => {
+    const baseDir = makeTempDir("t3code-state-static-manifest-dev-");
+    const staticDir = makeTempDir("t3code-static-manifest-dev-");
+    fs.writeFileSync(path.join(staticDir, "index.html"), "<h1>static-root</h1>", "utf8");
+
+    server = await createTestServer({ cwd: "/test/project", baseDir, staticDir });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    const response = await requestPath(port, "/manifest.webmanifest", {
+      Host: "t3-dev.claude.do",
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers["content-type"]).toContain("application/manifest+json");
+    expect(JSON.parse(response.body)).toEqual(
+      expect.objectContaining({
+        theme_color: "#170308",
+        background_color: "#170308",
+        icons: expect.arrayContaining([
+          expect.objectContaining({ src: "/apple-touch-icon.png", sizes: "180x180" }),
+        ]),
+      }),
+    );
+  });
+
+  it("serves host-aware favicon aliases for the dev host", async () => {
+    const baseDir = makeTempDir("t3code-state-static-favicon-dev-");
+    const staticDir = makeTempDir("t3code-static-favicon-dev-");
+    fs.writeFileSync(path.join(staticDir, "index.html"), "<h1>static-root</h1>", "utf8");
+    fs.writeFileSync(path.join(staticDir, "favicon.ico"), "prod-icon", "utf8");
+    fs.writeFileSync(path.join(staticDir, "favicon-dev.ico"), "dev-icon", "utf8");
+
+    server = await createTestServer({ cwd: "/test/project", baseDir, staticDir });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    const response = await requestPath(port, "/favicon.ico", {
+      Host: "t3-dev.claude.do",
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toBe("dev-icon");
+  });
+
+  it("brands the initial html shell for the dev host before js runs", async () => {
+    const baseDir = makeTempDir("t3code-state-static-html-dev-");
+    const staticDir = makeTempDir("t3code-static-html-dev-");
+    fs.writeFileSync(
+      path.join(staticDir, "index.html"),
+      [
+        "<!doctype html>",
+        '<html lang="en">',
+        "  <head>",
+        '    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#07101f" />',
+        "    <!-- app-branding-vars -->",
+        "  </head>",
+        "  <body></body>",
+        "</html>",
+      ].join("\n"),
+      "utf8",
+    );
+
+    server = await createTestServer({ cwd: "/test/project", baseDir, staticDir });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    const response = await requestPath(port, "/", { Host: "t3-dev.claude.do" });
+    expect(response.statusCode).toBe(200);
+    expect(response.body).toContain('<html lang="en" data-host-variant="t3-dev">');
+    expect(response.body).toContain("--t3-boot-mid:#170308;");
+    expect(response.body).toContain('content="#170308"');
   });
 
   it("rejects static path traversal attempts", async () => {
