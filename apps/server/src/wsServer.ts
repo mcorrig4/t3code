@@ -81,7 +81,7 @@ import { makeServerReadiness } from "./wsServer/readiness.ts";
 import { decodeJsonResult, formatSchemaError } from "@t3tools/shared/schemaJson";
 import { WebPushNotifications } from "./notifications/Services/WebPushNotifications.ts";
 import { WebPushRequestError } from "./notifications/types.ts";
-import { renderForkHtmlDocument, tryHandleForkHttpRequest } from "./fork/http/index.ts";
+import { maybeBuildForkHtmlDocumentResponse, tryHandleForkHttpRequest } from "./fork/http/index.ts";
 
 /**
  * ServerShape - Service API for server lifecycle control.
@@ -590,11 +590,16 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
             respond(404, { "Content-Type": "text/plain" }, "Not Found");
             return;
           }
-          respond(
-            200,
-            { "Content-Type": "text/html; charset=utf-8" },
-            renderForkHtmlDocument(Buffer.from(indexData).toString("utf8"), req),
-          );
+          const htmlResponse = maybeBuildForkHtmlDocumentResponse({
+            html: Buffer.from(indexData).toString("utf8"),
+            request: req,
+            contentType: "text/html; charset=utf-8",
+          });
+          if (!htmlResponse) {
+            respond(500, { "Content-Type": "text/plain" }, "Internal Server Error");
+            return;
+          }
+          respond(htmlResponse.statusCode, htmlResponse.headers, htmlResponse.body);
           return;
         }
 
@@ -607,12 +612,15 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
           return;
         }
         if (contentType.includes("text/html")) {
-          respond(
-            200,
-            { "Content-Type": contentType },
-            renderForkHtmlDocument(Buffer.from(data).toString("utf8"), req),
-          );
-          return;
+          const htmlResponse = maybeBuildForkHtmlDocumentResponse({
+            html: Buffer.from(data).toString("utf8"),
+            request: req,
+            contentType,
+          });
+          if (htmlResponse) {
+            respond(htmlResponse.statusCode, htmlResponse.headers, htmlResponse.body);
+            return;
+          }
         }
         respond(200, { "Content-Type": contentType }, data);
       }),

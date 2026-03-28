@@ -10,6 +10,12 @@ export function expectNoBlockedHost(bodyText) {
   }
 }
 
+export function expectNoApplicationError(bodyText) {
+  if (bodyText.includes("Unexpected Application Error")) {
+    throw new Error("The app rendered an unexpected application error.");
+  }
+}
+
 export async function expectJsonResponse(response, label) {
   const text = await response.text();
   if (!response.ok) {

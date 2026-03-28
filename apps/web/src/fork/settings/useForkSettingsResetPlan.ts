@@ -1,30 +1,24 @@
-import { useMemo } from "react";
-
-import { buildForkSettingsResetPlan, type ForkSettingsResetPlan } from "./resetPlan";
+import { buildCombinedSettingsResetPlan, type CombinedSettingsResetPlan } from "./resetPlan";
+import type { UpstreamSettingsResetPlan } from "../../settings/resetPlan";
 import { useForkSettings } from "./useForkSettings";
 
 export interface UseForkSettingsResetPlanResult {
-  readonly resetPlan: ForkSettingsResetPlan;
-  readonly resetForkSettings: () => void;
+  readonly resetPlan: CombinedSettingsResetPlan;
 }
 
 export function useForkSettingsResetPlan(
-  upstreamDirtyLabels: ReadonlyArray<string>,
+  upstreamResetPlan: UpstreamSettingsResetPlan,
 ): UseForkSettingsResetPlanResult {
   const { settings, defaults, resetForkSettings } = useForkSettings();
 
-  const resetPlan = useMemo(
-    () =>
-      buildForkSettingsResetPlan({
-        upstreamDirtyLabels,
-        forkSettings: settings,
-        forkDefaults: defaults,
-      }),
-    [defaults, settings, upstreamDirtyLabels],
-  );
+  const resetPlan = buildCombinedSettingsResetPlan({
+    upstreamResetPlan,
+    forkSettings: settings,
+    forkDefaults: defaults,
+    resetForkSettings,
+  });
 
   return {
     resetPlan,
-    resetForkSettings,
   };
 }

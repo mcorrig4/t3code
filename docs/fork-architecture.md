@@ -23,7 +23,8 @@ This fork is organized around a small set of capsules. Each capsule should have:
   - `ForkHttpModule`
   - `tryHandleForkHttpRequest(...)`
   - `validateForkHttpAuth(...)`
-  - `renderForkHtmlDocument(...)`
+  - `ForkHtmlDocumentResponse`
+  - `maybeBuildForkHtmlDocumentResponse(...)`
 
 ### 2. Notification delivery capsule
 
@@ -49,12 +50,15 @@ This fork is organized around a small set of capsules. Each capsule should have:
   - [apps/web/src/fork/settings/useForkSettingsResetPlan.ts](/home/claude/code/t3code/apps/web/src/fork/settings/useForkSettingsResetPlan.ts)
   - [apps/web/src/fork/settings/resetPlan.ts](/home/claude/code/t3code/apps/web/src/fork/settings/resetPlan.ts)
   - [apps/web/src/fork/settings/registry.ts](/home/claude/code/t3code/apps/web/src/fork/settings/registry.ts)
+  - [apps/web/src/settings/resetPlan.ts](/home/claude/code/t3code/apps/web/src/settings/resetPlan.ts)
   - [apps/web/src/notifications/usePushNotifications.ts](/home/claude/code/t3code/apps/web/src/notifications/usePushNotifications.ts) (100% fork-owned, lives outside fork/ for now)
 - Contract:
   - `ForkSettingsSchema`
   - `useForkSettings()`
   - `useForkSettingsResetPlan(...)`
   - `buildForkSettingsResetPlan(...)`
+  - `buildCombinedSettingsResetPlan(...)`
+  - `buildUpstreamSettingsResetPlan(...)`
   - `ForkSettingsRegistryEntry`
 
 ### 4. Web bootstrap and branding/PWA capsule
@@ -84,8 +88,11 @@ This fork is organized around a small set of capsules. Each capsule should have:
   - [apps/web/src/debug/userInputDebug.ts](/home/claude/code/t3code/apps/web/src/debug/userInputDebug.ts)
   - [apps/web/src/debug/UserInputDebugSidecar.tsx](/home/claude/code/t3code/apps/web/src/debug/UserInputDebugSidecar.tsx)
   - [apps/web/src/components/debug/UserInputDebugPanel.tsx](/home/claude/code/t3code/apps/web/src/components/debug/UserInputDebugPanel.tsx)
+  - [apps/web/src/fork/bootstrap/ForkRootSidecars.tsx](/home/claude/code/t3code/apps/web/src/fork/bootstrap/ForkRootSidecars.tsx)
+  - [apps/web/src/fork/bootstrap/rootDebug.ts](/home/claude/code/t3code/apps/web/src/fork/bootstrap/rootDebug.ts)
 - Contract:
   - `logUserInputDebugLazy(...)`
+  - `ForkRootSidecars`
   - owned DOM hooks such as `data-slot="fork-stage-badge"`
 
 ### 6. Sync and test infrastructure capsule
@@ -100,6 +107,16 @@ This fork is organized around a small set of capsules. Each capsule should have:
   - [apps/web/e2e/shared/browser.mjs](/home/claude/code/t3code/apps/web/e2e/shared/browser.mjs)
   - [apps/web/e2e/shared/assertions.mjs](/home/claude/code/t3code/apps/web/e2e/shared/assertions.mjs)
   - [apps/web/e2e/shared/smokeRunner.mjs](/home/claude/code/t3code/apps/web/e2e/shared/smokeRunner.mjs)
+  - [apps/web/src/settings/ForkSettingsSection.browser.tsx](/home/claude/code/t3code/apps/web/src/settings/ForkSettingsSection.browser.tsx)
+
+## Smoke layers
+
+- `sync:smoke:quick`
+  - deterministic acceptance check + browser spec + local/either smoke flows
+- `sync:smoke:hosted`
+  - hosted environment smoke flows that depend on `t3-dev.claude.do` or matching server wiring
+- `sync:smoke:all`
+  - runs quick first, then hosted
 
 ## Known upstream-owned CSS dependencies
 

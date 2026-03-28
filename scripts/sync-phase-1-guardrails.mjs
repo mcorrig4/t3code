@@ -25,7 +25,7 @@ const agents = readFileSync(join(repoRoot, "AGENTS.md"), "utf8");
 for (const needle of [
   "mcorrig4/t3code",
   "pingdotgg/t3code",
-  "v<upstream-semver>-<upstream-sync-date>.<n>",
+  "v<upstream-semver>-<upstream-sync-date>.<n>[-<pre>]",
   "production` is a protected runtime branch",
   "reapply and adapt our fork-specific behavior on top of it feature-by-feature",
 ]) {

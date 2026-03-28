@@ -10,7 +10,12 @@ export {
   useForkSettingsResetPlan,
   type UseForkSettingsResetPlanResult,
 } from "./useForkSettingsResetPlan";
-export { buildForkSettingsResetPlan, type ForkSettingsResetPlan } from "./resetPlan";
+export {
+  buildCombinedSettingsResetPlan,
+  buildForkSettingsResetPlan,
+  type CombinedSettingsResetPlan,
+  type ForkSettingsResetPlan,
+} from "./resetPlan";
 export {
   FORK_SETTINGS_REGISTRY,
   getForkDirtyLabels,

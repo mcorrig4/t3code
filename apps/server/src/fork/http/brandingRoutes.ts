@@ -9,11 +9,34 @@ import {
 } from "../branding.ts";
 import type { ForkHttpContext } from "./index.ts";
 
+export interface ForkHtmlDocumentResponse {
+  readonly statusCode: number;
+  readonly headers: Record<string, string>;
+  readonly body: string;
+}
+
 export function applyForkHttpBrandingToHtml(
   html: string,
   request: ForkHttpContext["request"],
 ): string {
   return applyForkBrandingToHtml(html, request);
+}
+
+export function tryBuildForkHtmlDocumentResponse(input: {
+  readonly html: string;
+  readonly request: ForkHttpContext["request"];
+  readonly contentType: string;
+  readonly statusCode?: number;
+}): ForkHtmlDocumentResponse | null {
+  if (!input.contentType.includes("text/html")) {
+    return null;
+  }
+
+  return {
+    statusCode: input.statusCode ?? 200,
+    headers: { "Content-Type": input.contentType },
+    body: applyForkHttpBrandingToHtml(input.html, input.request),
+  };
 }
 
 export function tryHandleForkBrandingRequest(context: ForkHttpContext): Effect.Effect<boolean> {

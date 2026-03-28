@@ -5,7 +5,7 @@ import {
   removeLocalStorageItem,
   setLocalStorageItem,
 } from "../../hooks/useLocalStorage";
-import { buildForkSettingsResetPlan } from "./resetPlan";
+import { buildCombinedSettingsResetPlan, buildForkSettingsResetPlan } from "./resetPlan";
 import { migrateLegacyForkSettings, readForkSettingsSnapshot } from "./persistence";
 import {
   DEFAULT_FORK_SETTINGS,
@@ -117,5 +117,31 @@ describe("buildForkSettingsResetPlan", () => {
       allDirtyLabels: [],
       hasChanges: false,
     });
+  });
+
+  it("composes the upstream reset handler with fork reset behavior", () => {
+    const resetUpstreamSettings = vi.fn();
+    const resetForkSettings = vi.fn();
+
+    const resetPlan = buildCombinedSettingsResetPlan({
+      upstreamResetPlan: {
+        upstreamDirtyLabels: ["Theme"],
+        hasChanges: true,
+        resetUpstreamSettings,
+      },
+      forkSettings: {
+        pushNotificationsEnabled: true,
+        suppressCodexAppServerNotifications: false,
+      },
+      forkDefaults: DEFAULT_FORK_SETTINGS,
+      resetForkSettings,
+    });
+
+    expect(resetPlan.allDirtyLabels).toEqual(["Theme", "Push notifications"]);
+    expect(resetPlan.upstreamDirtyLabels).toEqual(["Theme"]);
+
+    resetPlan.resetPersistentSettings();
+    expect(resetUpstreamSettings).toHaveBeenCalledOnce();
+    expect(resetForkSettings).toHaveBeenCalledOnce();
   });
 });

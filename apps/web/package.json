@@ -19,8 +19,11 @@
     "sync:phase7:smoke": "node e2e/sync-phase-7-web-push.mjs && vitest run src/appSettings.test.ts src/fork/settings/useForkSettings.test.ts src/pwa.test.ts ../server/src/notifications/http.test.ts ../server/src/notifications/policy.test.ts ../server/src/fork/notifications/intentResolver.test.ts",
     "sync:phase9:smoke": "node e2e/sync-phase-9-settings-sidecar.mjs",
     "sync:acceptance:check": "bun run e2e/check-fork-acceptance-matrix.ts",
-    "sync:smoke:all": "bun run sync:acceptance:check && bun run sync:phase0:smoke && bun run sync:phase2:smoke && bun run sync:phase4:smoke && bun run sync:phase6:smoke && bun run sync:phase7:smoke && bun run sync:phase9:smoke",
+    "sync:smoke:quick": "bun run sync:acceptance:check && bun run test:browser:fork && bun run sync:phase4:smoke && bun run sync:phase6:smoke && bun run sync:phase9:smoke",
+    "sync:smoke:hosted": "bun run sync:phase0:smoke && bun run sync:phase2:smoke && bun run sync:phase7:smoke",
+    "sync:smoke:all": "bun run sync:smoke:quick && bun run sync:smoke:hosted",
     "test:browser": "vitest run --config vitest.browser.config.ts",
+    "test:browser:fork": "vitest run --config vitest.browser.config.ts src/settings/ForkSettingsSection.browser.tsx",
     "test:browser:install": "playwright install --with-deps chromium"
   },
   "dependencies": {

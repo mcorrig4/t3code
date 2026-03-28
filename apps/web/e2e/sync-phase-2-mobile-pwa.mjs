@@ -4,7 +4,7 @@ import { runSmoke } from "./shared/smokeRunner.mjs";
 import { resolveSmokeUrls } from "./shared/urls.mjs";
 
 const { baseUrl } = resolveSmokeUrls();
-const { browser, page } = await createMobileSmokePage();
+const { browser, context, page } = await createMobileSmokePage();
 
 try {
   await runSmoke("sync-phase-2", async () => {
@@ -62,5 +62,6 @@ try {
     }
   });
 } finally {
+  await context.close();
   await browser.close();
 }

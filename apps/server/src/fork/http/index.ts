@@ -6,7 +6,11 @@ import type { FileSystem, Path } from "effect";
 
 import type { ServerConfigShape } from "../../config.ts";
 import type { WebPushNotificationsShape } from "../../notifications/Services/WebPushNotifications.ts";
-import { applyForkHttpBrandingToHtml, tryHandleForkBrandingRequest } from "./brandingRoutes.ts";
+import {
+  tryBuildForkHtmlDocumentResponse,
+  tryHandleForkBrandingRequest,
+  type ForkHtmlDocumentResponse,
+} from "./brandingRoutes.ts";
 import { tryHandleWebPushHttpRequest } from "./webPushRoutes.ts";
 
 export class HttpAuthError extends Schema.TaggedErrorClass<HttpAuthError>()("HttpAuthError", {
@@ -116,5 +120,9 @@ export const tryHandleForkHttpRequest = (context: ForkHttpContext): Effect.Effec
     return false;
   });
 
-export const renderForkHtmlDocument = (html: string, request: http.IncomingMessage): string =>
-  applyForkHttpBrandingToHtml(html, request);
+export const maybeBuildForkHtmlDocumentResponse = (input: {
+  readonly html: string;
+  readonly request: http.IncomingMessage;
+  readonly contentType: string;
+  readonly statusCode?: number;
+}): ForkHtmlDocumentResponse | null => tryBuildForkHtmlDocumentResponse(input);

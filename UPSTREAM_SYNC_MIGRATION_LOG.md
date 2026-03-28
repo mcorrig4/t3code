@@ -111,7 +111,7 @@ The phase wrappers exist for continuity; the capsule seams are now the long-term
 - Notes:
   - keep the upstream settings framework intact and layer fork-only Codex session overrides into the existing advanced install controls instead of reviving the older fork settings page wholesale
   - web push settings stay coupled to the later push sidecar phase so the sync branch does not grow a half-wired settings surface before the server and client notification layers return
-  - future fork-only settings should move toward a single injected sidecar section/component while still sharing the canonical app settings store by default
+  - the current fork keeps fork-only settings in `t3code:fork-settings:v1`, with upstream dirty/reset composition flowing through `apps/web/src/settings/resetPlan.ts` and the combined route seam in `apps/web/src/fork/settings/useForkSettingsResetPlan.ts`
   - see [FORK_SETTINGS_SIDECAR_PLAN.md](/home/claude/code/t3code/FORK_SETTINGS_SIDECAR_PLAN.md)
 
 ### Phase 5: Native TTS
@@ -137,6 +137,7 @@ The phase wrappers exist for continuity; the capsule seams are now the long-term
   - focus this phase on optional fork-only debugging surfaces such as the user-input debug panel and any truly necessary runtime overrides
   - prefer sidecar seams over broad runtime divergence
   - the current phase smoke validates the Settings diagnostics opener, debug query param compatibility, sidecar mount, and global error/rejection breadcrumb capture on the local dev web endpoint
+  - the current root-sidecar seam is `apps/web/src/fork/bootstrap/ForkRootSidecars.tsx`, which keeps `__root.tsx` to one fork mount point plus route behavior
 
 ### Phase 7: Web push notifications
 
@@ -178,6 +179,10 @@ The phase wrappers exist for continuity; the capsule seams are now the long-term
 - Each script should check only the behaviors touched by that phase, plus one or two nearby sanity checks.
 - Keep the scripts runnable against the dev host with a simple command.
 - Use a delegated agent/sub-agent to run the browser verification and summarize only the important findings in the main thread.
+- Prefer the layered smoke entrypoints for routine operation:
+  - `sync:smoke:quick` for deterministic local/either coverage
+  - `sync:smoke:hosted` for checks that need the hosted dev surface
+  - `sync:smoke:all` when you want the full gate
 
 ## Standard Commands
 
@@ -185,5 +190,13 @@ The phase wrappers exist for continuity; the capsule seams are now the long-term
   - `bun run --cwd apps/web test:browser:install`
 - Run existing component browser tests:
   - `bun run --cwd apps/web test:browser`
+- Run fork browser coverage:
+  - `bun run --cwd apps/web test:browser:fork`
 - Run the current phase baseline smoke:
   - `bun run sync:phase0:smoke`
+- Run the deterministic smoke layer:
+  - `bun run --cwd apps/web sync:smoke:quick`
+- Run the hosted smoke layer:
+  - `bun run --cwd apps/web sync:smoke:hosted`
+- Run the full smoke gate:
+  - `bun run --cwd apps/web sync:smoke:all`

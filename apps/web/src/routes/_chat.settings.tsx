@@ -34,6 +34,7 @@ import { serverConfigQueryOptions } from "../lib/serverReactQuery";
 import { cn } from "../lib/utils";
 import { ensureNativeApi, readNativeApi } from "../nativeApi";
 import { useForkSettingsResetPlan } from "../fork/settings";
+import { buildUpstreamSettingsResetPlan } from "../settings/resetPlan";
 import { ForkSettingsSection } from "../settings/ForkSettingsSection";
 
 const THEME_OPTIONS = [
@@ -227,6 +228,10 @@ function SettingsRouteView() {
     defaults.textGenerationModel ?? DEFAULT_GIT_TEXT_GENERATION_MODEL;
   const isGitTextGenerationModelDirty =
     currentGitTextGenerationModel !== defaultGitTextGenerationModel;
+  const isInstallSettingsDirty =
+    settings.claudeBinaryPath !== defaults.claudeBinaryPath ||
+    settings.codexBinaryPath !== defaults.codexBinaryPath ||
+    settings.codexHomePath !== defaults.codexHomePath;
   const selectedGitTextGenerationModelLabel =
     gitTextGenerationModelOptions.find((option) => option.slug === currentGitTextGenerationModel)
       ?.name ?? currentGitTextGenerationModel;
@@ -247,28 +252,14 @@ function SettingsRouteView() {
   const visibleCustomModelRows = showAllCustomModels
     ? savedCustomModelRows
     : savedCustomModelRows.slice(0, 5);
-  const isInstallSettingsDirty =
-    settings.claudeBinaryPath !== defaults.claudeBinaryPath ||
-    settings.codexBinaryPath !== defaults.codexBinaryPath ||
-    settings.codexHomePath !== defaults.codexHomePath;
-  const upstreamDirtyLabels = [
-    ...(theme !== "system" ? ["Theme"] : []),
-    ...(settings.timestampFormat !== defaults.timestampFormat ? ["Time format"] : []),
-    ...(settings.diffWordWrap !== defaults.diffWordWrap ? ["Diff line wrapping"] : []),
-    ...(settings.enableAssistantStreaming !== defaults.enableAssistantStreaming
-      ? ["Assistant output"]
-      : []),
-    ...(settings.defaultThreadEnvMode !== defaults.defaultThreadEnvMode ? ["New thread mode"] : []),
-    ...(settings.confirmThreadDelete !== defaults.confirmThreadDelete
-      ? ["Delete confirmation"]
-      : []),
-    ...(isGitTextGenerationModelDirty ? ["Git writing model"] : []),
-    ...(settings.customCodexModels.length > 0 || settings.customClaudeModels.length > 0
-      ? ["Custom models"]
-      : []),
-    ...(isInstallSettingsDirty ? ["Provider installs"] : []),
-  ];
-  const { resetPlan, resetForkSettings } = useForkSettingsResetPlan(upstreamDirtyLabels);
+  const upstreamResetPlan = buildUpstreamSettingsResetPlan({
+    theme,
+    setTheme,
+    settings,
+    defaults,
+    resetSettings,
+  });
+  const { resetPlan } = useForkSettingsResetPlan(upstreamResetPlan);
 
   const openKeybindingsFile = useCallback(() => {
     if (!keybindingsConfigPath) return;
@@ -369,9 +360,7 @@ function SettingsRouteView() {
     );
     if (!confirmed) return;
 
-    setTheme("system");
-    resetSettings();
-    resetForkSettings();
+    resetPlan.resetPersistentSettings();
     setOpenInstallProviders({
       codex: false,
       claudeAgent: false,

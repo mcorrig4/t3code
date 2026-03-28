@@ -20,6 +20,7 @@ Update the matching entry when:
 - more files become involved
 - the deploy or rollback process changes
 - we discover new failure symptoms or verification steps
+- upstream changes mean the enhancement should be replaced, deprecated, or removed
 
 Prefer one entry per user-visible change or operational customization. If a later change extends an earlier one, update the existing entry and add a short dated note.
 
@@ -35,8 +36,13 @@ Copy this block for new entries:
 - Last updated: YYYY-MM-DD
 - Owners: <team/person>
 - Upstream impact: none | low | medium | high
+- Sync risk: low | medium | high
 - Areas: <app/runtime/deploy surfaces>
 - Why this exists: <plain English reason>
+- Intentional seam:
+  - <upstream-owned mount seam>
+- Fork-owned implementation:
+  - `path/to/fork/module`
 - Files:
   - `path/to/file`
   - `path/to/another-file`
@@ -48,6 +54,10 @@ Copy this block for new entries:
 - Verify with:
   - <command or manual check>
   - <manual check>
+- Upstream replacement trigger:
+  - <what upstream change would make this enhancement obsolete>
+- Removal signal:
+  - <what tells us it is safe to remove or deprecate the fork code>
 - Rollback notes:
   - <how to disable or revert quickly>
 - Notes:
@@ -100,6 +110,7 @@ Copy this block for new entries:
   - 2026-03-25: Fixed a regression where the web app reintroduced `codex.configOverrides`, but the shared provider-options schema and Codex launch path still ignored that field, so `notify=[]` never reached the spawned `codex app-server` process.
   - 2026-03-26: Moved the persisted `suppressCodexAppServerNotifications` flag into the dedicated fork settings store under `apps/web/src/fork/settings`, keeping the upstream app settings schema focused on upstream-equivalent controls while preserving the existing `ForkSettingsSection` seam.
   - 2026-03-26: Added `useForkSettingsResetPlan(...)` so the settings route can compose fork reset state through the fork settings seam instead of directly reconstructing fork-store defaults and dirty labels inline.
+  - 2026-03-26: Added `apps/web/src/settings/resetPlan.ts` plus the combined reset-plan composition in `apps/web/src/fork/settings/resetPlan.ts`, so `_chat.settings.tsx` no longer owns the upstream dirty-label list and now keeps only route-local UI cleanup after `Restore defaults`.
 
 ## Standardized Enhancement Ledger Filename
 
@@ -642,6 +653,7 @@ Copy this block for new entries:
   - 2026-03-25: Moved the Diagnostics settings control into `ForkSettingsSection` so the upstream settings page only mounts the fork-owned sidecar section instead of hosting a dedicated debug row directly.
   - 2026-03-26: Added Codex session-override breadcrumbs in `ChatView` so the sidecar records the exact `providerOptions` payload, suppression flag, runtime mode, and interaction mode sent with each `thread.turn.start`, making it easier to verify whether `notify=[]` is present before debugging server launch behavior.
   - 2026-03-26: Added `logUserInputDebugLazy(...)` and migrated the heavier JSON-stringifying debug callsites so the sidecar avoids building large breadcrumb payloads when diagnostics are disabled.
+  - 2026-03-26: Introduced `apps/web/src/fork/bootstrap/ForkRootSidecars.tsx` and `apps/web/src/fork/bootstrap/rootDebug.ts` so `__root.tsx` now mounts a single fork debug sidecar seam and delegates its fork-only breadcrumb formatting/logging helpers to the bootstrap sidecar layer.
 
 ## Fork Capsule Sync Infrastructure
 
@@ -666,6 +678,7 @@ Copy this block for new entries:
   - restore direct phase-script ownership if shared smoke infrastructure becomes unnecessary
 - Notes:
   - 2026-03-26: Added capsule-oriented architecture and acceptance docs, plus a fork smoke manifest and acceptance-matrix consistency check, while keeping the existing `sync:phaseN:smoke` commands stable as wrappers.
+  - 2026-03-26: Added layered smoke commands (`sync:smoke:quick`, `sync:smoke:hosted`, `sync:smoke:all`), shared browser/storage helpers under `apps/web/e2e/shared`, and the fork browser spec `apps/web/src/settings/ForkSettingsSection.browser.tsx` so deterministic browser coverage now complements the phase scripts instead of depending entirely on hosted smoke runs.
 
 ## T3 Dev Runtime Branding
 
@@ -722,6 +735,7 @@ Copy this block for new entries:
   - 2026-03-26: Consolidated host-specific branding behind a shared resolver plus a server-side branding sidecar so the dev host now gets a dark red manifest, canonical favicon/apple-touch-icon responses, and a red splash/boot-shell treatment before any browser JS runs. The loader stayed a single component and now themes through a variant seam instead of a forked component copy.
   - 2026-03-26: Added a matching Vite dev-server branding adapter in `apps/web/src/fork/brandingVitePlugin.ts` so hosted dev sessions served through `devUrl` now get the same canonical manifest/icon aliases and pre-JS red HTML shell treatment as the production-style server path, instead of falling back to the generic blue public assets.
   - 2026-03-26: Replaced the brittle class-chain selector for the visible `DEVELOP` badge with an explicit `data-slot="fork-stage-badge"` hook and moved web startup orchestration behind `apps/web/src/fork/bootstrap/installForkWebShell.ts` so future upstream shell changes can rebind one seam instead of rediscovering multiple startup sidecars.
+  - 2026-03-26: Moved direct HTML document branding for both static HTML responses and SPA fallback responses behind `apps/server/src/fork/http/brandingRoutes.ts` via `maybeBuildForkHtmlDocumentResponse(...)`, so `wsServer.ts` no longer decides on its own when HTML should be branded.
 
 ## Fork Repository And Branch Safety Guardrails
 

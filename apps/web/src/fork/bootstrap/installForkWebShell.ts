@@ -2,6 +2,7 @@ import { installBootShellBootstrap } from "./bootShellBootstrap";
 import type { ForkWebBootstrapInput } from "./brandingBootstrap";
 import { installBrandingBootstrap } from "./brandingBootstrap";
 import { installDebugBootstrap } from "./debugBootstrap";
+export { ForkRootSidecars } from "./ForkRootSidecars";
 import { installPwaBootstrap } from "./pwaBootstrap";
 
 export interface ForkWebShellHandle {
