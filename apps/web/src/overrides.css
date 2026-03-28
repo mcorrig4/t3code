@@ -74,9 +74,7 @@
   );
 }
 
-:root[data-host-variant="t3-dev"]
-  .flex.min-w-0.flex-1.items-center.gap-1.ml-1.cursor-pointer
-  > span:last-child {
+:root[data-host-variant="t3-dev"] [data-slot="fork-stage-badge"] {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -91,9 +89,7 @@
   letter-spacing: 0;
 }
 
-:root[data-host-variant="t3-dev"]
-  .flex.min-w-0.flex-1.items-center.gap-1.ml-1.cursor-pointer
-  > span:last-child::after {
+:root[data-host-variant="t3-dev"] [data-slot="fork-stage-badge"]::after {
   content: "DEVELOP";
   color: color-mix(in srgb, var(--color-red-600) 82%, var(--foreground));
   font-size: 8px;
@@ -103,15 +99,11 @@
   transform: translateY(0.5px);
 }
 
-:root.dark[data-host-variant="t3-dev"]
-  .flex.min-w-0.flex-1.items-center.gap-1.ml-1.cursor-pointer
-  > span:last-child {
+:root.dark[data-host-variant="t3-dev"] [data-slot="fork-stage-badge"] {
   background: color-mix(in srgb, var(--color-red-500) 18%, transparent);
 }
 
-:root.dark[data-host-variant="t3-dev"]
-  .flex.min-w-0.flex-1.items-center.gap-1.ml-1.cursor-pointer
-  > span:last-child::after {
+:root.dark[data-host-variant="t3-dev"] [data-slot="fork-stage-badge"]::after {
   color: color-mix(in srgb, var(--color-red-400) 88%, var(--foreground));
 }
 
@@ -216,9 +208,23 @@
   }
 }
 
-/* Always show copy buttons on touch / mobile devices */
+/* Prevent iOS Safari auto-zoom on the sidebar rename input (font-size < 16px triggers zoom) */
+@media (hover: none) {
+  [data-slot="thread-rename-input"] {
+    font-size: 16px;
+  }
+}
+
+/* Always show copy/action buttons on touch / mobile devices */
 @media (hover: none) {
   .chat-markdown .chat-markdown-copy-button {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  [data-slot="user-message-actions"],
+  [data-slot="thread-terminal-close-action"],
+  [data-slot="custom-model-remove-action"] {
     opacity: 1;
     pointer-events: auto;
   }

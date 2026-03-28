@@ -33,6 +33,7 @@ import { GitHubCliLive } from "./git/Layers/GitHubCli";
 import { CodexTextGenerationLive } from "./git/Layers/CodexTextGeneration";
 import { WebPushNotificationsLive } from "./notifications/Layers/WebPushNotifications.ts";
 import { WebPushSubscriptionRepositoryLive } from "./notifications/Layers/WebPushSubscriptionRepository.ts";
+import { ForkNotificationIntentResolverLive } from "./fork/notifications/intentResolver.ts";
 import { PtyAdapter } from "./terminal/Services/PTY";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService";
 
@@ -135,6 +136,7 @@ export function makeServerRuntimeServicesLayer() {
   const webPushLayer = WebPushNotificationsLive.pipe(
     Layer.provideMerge(runtimeServicesLayer),
     Layer.provideMerge(WebPushSubscriptionRepositoryLive),
+    Layer.provideMerge(ForkNotificationIntentResolverLive),
   );
 
   return Layer.mergeAll(

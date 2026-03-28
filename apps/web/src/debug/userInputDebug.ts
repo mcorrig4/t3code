@@ -221,6 +221,19 @@ export function logUserInputDebug(entry: Omit<UserInputDebugEntry, "id" | "times
   console.debug("[user-input-debug]", entry);
 }
 
+export function logUserInputDebugLazy(
+  factory: () => Omit<UserInputDebugEntry, "id" | "timestamp">,
+): void {
+  const store = useUserInputDebugStore.getState();
+  if (!store.enabled) {
+    return;
+  }
+
+  const entry = factory();
+  store.pushEntry(entry);
+  console.debug("[user-input-debug]", entry);
+}
+
 export function setUserInputDebugEnabled(enabled: boolean): void {
   useUserInputDebugStore.getState().setEnabled(enabled);
 }

@@ -107,7 +107,7 @@ import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
 import { cn, randomUUID } from "~/lib/utils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { toastManager } from "./ui/toast";
-import { logUserInputDebug } from "~/debug/userInputDebug";
+import { logUserInputDebug, logUserInputDebugLazy } from "~/debug/userInputDebug";
 import { decodeProjectScriptKeybindingRule } from "~/lib/projectScriptKeybindings";
 import { type NewProjectScriptInput } from "./ProjectScriptsControl";
 import {
@@ -128,6 +128,7 @@ import {
   resolveAppModelSelection,
   useAppSettings,
 } from "../appSettings";
+import { useForkSettings } from "../fork/settings";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import {
   type ComposerImageAttachment,
@@ -249,6 +250,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const setStoreThreadError = useStore((store) => store.setError);
   const setStoreThreadBranch = useStore((store) => store.setThreadBranch);
   const { settings } = useAppSettings();
+  const { settings: forkSettings } = useForkSettings();
   const setStickyComposerModel = useComposerDraftStore((store) => store.setStickyModel);
   const timestampFormat = settings.timestampFormat;
   const navigate = useNavigate();
@@ -631,7 +633,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const selectedModelOptionsForDispatch = composerProviderState.modelOptionsForDispatch;
   const providerOptionsForDispatch = useMemo(() => {
     const providerStartOptions = getProviderStartOptions(settings);
-    if (!settings.suppressCodexAppServerNotifications) {
+    if (!forkSettings.suppressCodexAppServerNotifications) {
       return providerStartOptions;
     }
 
@@ -643,7 +645,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         configOverrides: ["notify=[]"],
       },
     };
-  }, [settings]);
+  }, [forkSettings.suppressCodexAppServerNotifications, settings]);
   const selectedModelForPicker = selectedModel;
   const modelOptionsByProvider = useMemo(
     () => getCustomModelOptionsByProvider(settings),
@@ -2740,14 +2742,14 @@ export default function ChatView({ threadId }: ChatViewProps) {
       const api = readNativeApi();
       if (!api || !activeThreadId) return;
 
-      logUserInputDebug({
+      logUserInputDebugLazy(() => ({
         level: "info",
         stage: "dispatch-start",
         message: "Dispatching thread.user-input.respond",
         threadId: activeThreadId,
         requestId,
         detail: JSON.stringify(answers, null, 2),
-      });
+      }));
       setRespondingUserInputRequestIds((existing) =>
         existing.includes(requestId) ? existing : [...existing, requestId],
       );
@@ -2760,14 +2762,14 @@ export default function ChatView({ threadId }: ChatViewProps) {
           answers,
           createdAt: new Date().toISOString(),
         });
-        logUserInputDebug({
+        logUserInputDebugLazy(() => ({
           level: "success",
           stage: "dispatch-success",
           message: "thread.user-input.respond accepted by orchestration",
           threadId: activeThreadId,
           requestId,
           detail: JSON.stringify(result, null, 2),
-        });
+        }));
       } catch (err: unknown) {
         logUserInputDebug({
           level: "error",
@@ -2804,14 +2806,14 @@ export default function ChatView({ threadId }: ChatViewProps) {
       if (!activePendingUserInput) {
         return;
       }
-      logUserInputDebug({
+      logUserInputDebugLazy(() => ({
         level: "info",
         stage: "option-selected",
         message: `Selected option "${optionLabel}"`,
         threadId: activeThreadId,
         requestId: activePendingUserInput.requestId,
         detail: JSON.stringify({ questionId }, null, 2),
-      });
+      }));
       setPendingUserInputAnswersByRequestId((existing) => ({
         ...existing,
         [activePendingUserInput.requestId]: {
@@ -2869,7 +2871,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       });
       return;
     }
-    logUserInputDebug({
+    logUserInputDebugLazy(() => ({
       level: "info",
       stage: "advance-click",
       message: activePendingProgress.isLastQuestion
@@ -2887,7 +2889,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         null,
         2,
       ),
-    });
+    }));
     if (activePendingProgress.isLastQuestion) {
       if (activePendingResolvedAnswers) {
         void onRespondToUserInput(activePendingUserInput.requestId, activePendingResolvedAnswers);
@@ -2917,28 +2919,37 @@ export default function ChatView({ threadId }: ChatViewProps) {
       lastPendingUserInputDebugStateRef.current = null;
       return;
     }
-    const nextState = JSON.stringify({
-      pendingCount: pendingUserInputs.length,
-      activeRequestId: activePendingUserInput?.requestId ?? null,
-      questionIndex: activePendingQuestionIndex,
-      isResponding: activePendingIsResponding,
-      isLastQuestion: activePendingProgress?.isLastQuestion ?? null,
-      canAdvance: activePendingProgress?.canAdvance ?? null,
-      isComplete: activePendingProgress?.isComplete ?? null,
-      answeredQuestionCount: activePendingProgress?.answeredQuestionCount ?? null,
-      hasResolvedAnswers: activePendingResolvedAnswers !== null,
-    });
-    if (lastPendingUserInputDebugStateRef.current === nextState) {
-      return;
-    }
-    lastPendingUserInputDebugStateRef.current = nextState;
-    logUserInputDebug({
-      level: "info",
-      stage: "pending-state",
-      message: "Pending user input state changed",
-      threadId: activeThreadId,
-      requestId: activePendingUserInput?.requestId ?? null,
-      detail: nextState,
+    logUserInputDebugLazy(() => {
+      const nextState = JSON.stringify({
+        pendingCount: pendingUserInputs.length,
+        activeRequestId: activePendingUserInput?.requestId ?? null,
+        questionIndex: activePendingQuestionIndex,
+        isResponding: activePendingIsResponding,
+        isLastQuestion: activePendingProgress?.isLastQuestion ?? null,
+        canAdvance: activePendingProgress?.canAdvance ?? null,
+        isComplete: activePendingProgress?.isComplete ?? null,
+        answeredQuestionCount: activePendingProgress?.answeredQuestionCount ?? null,
+        hasResolvedAnswers: activePendingResolvedAnswers !== null,
+      });
+      if (lastPendingUserInputDebugStateRef.current === nextState) {
+        return {
+          level: "info" as const,
+          stage: "pending-state",
+          message: "Pending user input state unchanged (dedup)",
+          threadId: activeThreadId,
+          requestId: activePendingUserInput?.requestId ?? null,
+          detail: "",
+        };
+      }
+      lastPendingUserInputDebugStateRef.current = nextState;
+      return {
+        level: "info" as const,
+        stage: "pending-state",
+        message: "Pending user input state changed",
+        threadId: activeThreadId,
+        requestId: activePendingUserInput?.requestId ?? null,
+        detail: nextState,
+      };
     });
   }, [
     activePendingIsResponding,
@@ -2989,10 +3000,10 @@ export default function ChatView({ threadId }: ChatViewProps) {
         return;
       }
 
-      logUserInputDebug({
-        level: settings.suppressCodexAppServerNotifications ? "info" : "warning",
+      logUserInputDebugLazy(() => ({
+        level: forkSettings.suppressCodexAppServerNotifications ? "info" : "warning",
         stage: "codex-session-overrides",
-        message: settings.suppressCodexAppServerNotifications
+        message: forkSettings.suppressCodexAppServerNotifications
           ? "Dispatching Codex turn with native-notification suppression enabled"
           : "Dispatching Codex turn without native-notification suppression",
         threadId: input.threadId,
@@ -3000,7 +3011,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
           {
             trigger: input.trigger,
             provider: selectedProvider,
-            suppressCodexAppServerNotifications: settings.suppressCodexAppServerNotifications,
+            suppressCodexAppServerNotifications: forkSettings.suppressCodexAppServerNotifications,
             runtimeMode: input.runtimeMode,
             interactionMode: input.interactionMode,
             providerOptions: providerOptionsForDispatch ?? null,
@@ -3008,9 +3019,13 @@ export default function ChatView({ threadId }: ChatViewProps) {
           null,
           2,
         ),
-      });
+      }));
     },
-    [providerOptionsForDispatch, selectedProvider, settings.suppressCodexAppServerNotifications],
+    [
+      forkSettings.suppressCodexAppServerNotifications,
+      providerOptionsForDispatch,
+      selectedProvider,
+    ],
   );
 
   const onSubmitPlanFollowUp = useCallback(

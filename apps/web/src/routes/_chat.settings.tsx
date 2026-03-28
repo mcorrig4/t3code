@@ -33,6 +33,8 @@ import { useTheme } from "../hooks/useTheme";
 import { serverConfigQueryOptions } from "../lib/serverReactQuery";
 import { cn } from "../lib/utils";
 import { ensureNativeApi, readNativeApi } from "../nativeApi";
+import { useForkSettingsResetPlan } from "../fork/settings";
+import { buildUpstreamSettingsResetPlan } from "../settings/resetPlan";
 import { ForkSettingsSection } from "../settings/ForkSettingsSection";
 
 const THEME_OPTIONS = [
@@ -226,6 +228,10 @@ function SettingsRouteView() {
     defaults.textGenerationModel ?? DEFAULT_GIT_TEXT_GENERATION_MODEL;
   const isGitTextGenerationModelDirty =
     currentGitTextGenerationModel !== defaultGitTextGenerationModel;
+  const isInstallSettingsDirty =
+    settings.claudeBinaryPath !== defaults.claudeBinaryPath ||
+    settings.codexBinaryPath !== defaults.codexBinaryPath ||
+    settings.codexHomePath !== defaults.codexHomePath;
   const selectedGitTextGenerationModelLabel =
     gitTextGenerationModelOptions.find((option) => option.slug === currentGitTextGenerationModel)
       ?.name ?? currentGitTextGenerationModel;
@@ -246,27 +252,14 @@ function SettingsRouteView() {
   const visibleCustomModelRows = showAllCustomModels
     ? savedCustomModelRows
     : savedCustomModelRows.slice(0, 5);
-  const isInstallSettingsDirty =
-    settings.claudeBinaryPath !== defaults.claudeBinaryPath ||
-    settings.codexBinaryPath !== defaults.codexBinaryPath ||
-    settings.codexHomePath !== defaults.codexHomePath;
-  const changedSettingLabels = [
-    ...(theme !== "system" ? ["Theme"] : []),
-    ...(settings.timestampFormat !== defaults.timestampFormat ? ["Time format"] : []),
-    ...(settings.diffWordWrap !== defaults.diffWordWrap ? ["Diff line wrapping"] : []),
-    ...(settings.enableAssistantStreaming !== defaults.enableAssistantStreaming
-      ? ["Assistant output"]
-      : []),
-    ...(settings.defaultThreadEnvMode !== defaults.defaultThreadEnvMode ? ["New thread mode"] : []),
-    ...(settings.confirmThreadDelete !== defaults.confirmThreadDelete
-      ? ["Delete confirmation"]
-      : []),
-    ...(isGitTextGenerationModelDirty ? ["Git writing model"] : []),
-    ...(settings.customCodexModels.length > 0 || settings.customClaudeModels.length > 0
-      ? ["Custom models"]
-      : []),
-    ...(isInstallSettingsDirty ? ["Provider installs"] : []),
-  ];
+  const upstreamResetPlan = buildUpstreamSettingsResetPlan({
+    theme,
+    setTheme,
+    settings,
+    defaults,
+    resetSettings,
+  });
+  const { resetPlan } = useForkSettingsResetPlan(upstreamResetPlan);
 
   const openKeybindingsFile = useCallback(() => {
     if (!keybindingsConfigPath) return;
@@ -356,18 +349,18 @@ function SettingsRouteView() {
   );
 
   async function restoreDefaults() {
-    if (changedSettingLabels.length === 0) return;
+    if (!resetPlan.hasChanges) return;
 
     const api = readNativeApi();
     const confirmed = await (api ?? ensureNativeApi()).dialogs.confirm(
-      ["Restore default settings?", `This will reset: ${changedSettingLabels.join(", ")}.`].join(
-        "\n",
-      ),
+      [
+        "Restore default settings?",
+        `This will reset: ${resetPlan.allDirtyLabels.join(", ")}.`,
+      ].join("\n"),
     );
     if (!confirmed) return;
 
-    setTheme("system");
-    resetSettings();
+    resetPlan.resetPersistentSettings();
     setOpenInstallProviders({
       codex: false,
       claudeAgent: false,
@@ -392,7 +385,7 @@ function SettingsRouteView() {
                 <Button
                   size="xs"
                   variant="outline"
-                  disabled={changedSettingLabels.length === 0}
+                  disabled={!resetPlan.hasChanges}
                   onClick={() => void restoreDefaults()}
                 >
                   <RotateCcwIcon className="size-3.5" />
@@ -412,7 +405,7 @@ function SettingsRouteView() {
               <Button
                 size="xs"
                 variant="outline"
-                disabled={changedSettingLabels.length === 0}
+                disabled={!resetPlan.hasChanges}
                 onClick={() => void restoreDefaults()}
               >
                 <RotateCcwIcon className="size-3.5" />
@@ -779,6 +772,7 @@ function SettingsRouteView() {
                               className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100 hover:opacity-100"
                               aria-label={`Remove ${row.slug}`}
                               onClick={() => removeCustomModel(row.provider, row.slug)}
+                              data-slot="custom-model-remove-action"
                             >
                               <XIcon className="size-3.5 text-muted-foreground hover:text-foreground" />
                             </button>

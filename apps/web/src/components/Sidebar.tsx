@@ -1231,6 +1231,7 @@ export default function Sidebar() {
               )}
               {renamingThreadId === thread.id ? (
                 <input
+                  data-slot="thread-rename-input"
                   ref={(el) => {
                     if (el && renamingInputRef.current !== el) {
                       renamingInputRef.current = el;
@@ -1626,7 +1627,10 @@ export default function Sidebar() {
               <span className="truncate text-sm font-medium tracking-tight text-muted-foreground">
                 Code
               </span>
-              <span className="rounded-full bg-muted/50 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.18em] text-muted-foreground/60">
+              <span
+                className="rounded-full bg-muted/50 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.18em] text-muted-foreground/60"
+                data-slot="fork-stage-badge"
+              >
                 {APP_STAGE_LABEL}
               </span>
             </div>

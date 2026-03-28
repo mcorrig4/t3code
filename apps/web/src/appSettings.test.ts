@@ -113,15 +113,6 @@ describe("timestamp format defaults", () => {
   });
 });
 
-describe("push notification defaults", () => {
-  it("defaults push notifications to disabled", () => {
-    const decode = Schema.decodeSync(Schema.fromJsonString(AppSettingsSchema));
-    const settings = decode("{}");
-
-    expect(settings.pushNotificationsEnabled).toBe(false);
-  });
-});
-
 describe("sidebar sort defaults", () => {
   it("defaults project sorting to updated_at", () => {
     expect(DEFAULT_SIDEBAR_PROJECT_SORT_ORDER).toBe("updated_at");
@@ -249,12 +240,6 @@ describe("provider-indexed custom model settings", () => {
 });
 
 describe("AppSettingsSchema", () => {
-  it("defaults Codex app-server notification suppression to false", () => {
-    const decode = Schema.decodeSync(Schema.fromJsonString(AppSettingsSchema));
-
-    expect(decode(JSON.stringify({})).suppressCodexAppServerNotifications).toBe(false);
-  });
-
   it("fills decoding defaults for persisted settings that predate newer keys", () => {
     const decode = Schema.decodeSync(Schema.fromJsonString(AppSettingsSchema));
 
@@ -269,7 +254,6 @@ describe("AppSettingsSchema", () => {
       claudeBinaryPath: "",
       codexBinaryPath: "/usr/local/bin/codex",
       codexHomePath: "",
-      suppressCodexAppServerNotifications: false,
       defaultThreadEnvMode: "local",
       confirmThreadDelete: false,
       enableAssistantStreaming: false,

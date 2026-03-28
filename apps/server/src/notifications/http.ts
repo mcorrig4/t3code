@@ -31,10 +31,18 @@ export function isWebPushUnsubscribeRequest(method: string | undefined, pathname
   return method === "DELETE" && pathname === WEB_PUSH_SUBSCRIPTION_PATH;
 }
 
+const MAX_BODY_SIZE = 65_536;
+
 export async function readJsonRequestBody(request: http.IncomingMessage): Promise<unknown> {
   const chunks: Buffer[] = [];
+  let totalBytes = 0;
   for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buf.byteLength;
+    if (totalBytes > MAX_BODY_SIZE) {
+      throw Object.assign(new Error("Request body too large"), { statusCode: 413 });
+    }
+    chunks.push(buf);
   }
 
   const body = Buffer.concat(chunks).toString("utf8");

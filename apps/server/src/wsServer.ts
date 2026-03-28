@@ -6,6 +6,7 @@
  *
  * @module Server
  */
+import crypto from "node:crypto";
 import http from "node:http";
 import type { Duplex } from "node:stream";
 
@@ -79,25 +80,8 @@ import { makeServerPushBus } from "./wsServer/pushBus.ts";
 import { makeServerReadiness } from "./wsServer/readiness.ts";
 import { decodeJsonResult, formatSchemaError } from "@t3tools/shared/schemaJson";
 import { WebPushNotifications } from "./notifications/Services/WebPushNotifications.ts";
-import {
-  buildWebPushConfigResponse,
-  decodeDeleteSubscriptionBody,
-  decodePutSubscriptionBody,
-  hasJsonContentType,
-  isAllowedOrigin,
-  isWebPushConfigRequest,
-  isWebPushSubscribeRequest,
-  isWebPushUnsubscribeRequest,
-  readJsonRequestBody,
-  toBadJsonError,
-} from "./notifications/http.ts";
 import { WebPushRequestError } from "./notifications/types.ts";
-import {
-  applyForkBrandingToHtml,
-  getBrandingAssetRelativePath,
-  isForkBrandingManifestPath,
-  renderForkBrandingManifest,
-} from "./fork/branding";
+import { maybeBuildForkHtmlDocumentResponse, tryHandleForkHttpRequest } from "./fork/http/index.ts";
 
 /**
  * ServerShape - Service API for server lifecycle control.
@@ -130,9 +114,16 @@ const isServerNotRunningError = (error: Error): boolean => {
   );
 };
 
+const HTTP_STATUS_REASONS: Record<number, string> = {
+  400: "Bad Request",
+  401: "Unauthorized",
+  500: "Internal Server Error",
+};
+
 function rejectUpgrade(socket: Duplex, statusCode: number, message: string): void {
+  const reason = HTTP_STATUS_REASONS[statusCode] ?? "Error";
   socket.end(
-    `HTTP/1.1 ${statusCode} ${statusCode === 401 ? "Unauthorized" : "Bad Request"}\r\n` +
+    `HTTP/1.1 ${statusCode} ${reason}\r\n` +
       "Connection: close\r\n" +
       "Content-Type: text/plain\r\n" +
       `Content-Length: ${Buffer.byteLength(message)}\r\n` +
@@ -256,24 +247,6 @@ const isWebPushRequestError = (error: unknown): error is WebPushRequestError =>
   Schema.is(WebPushRequestError)(error);
 const isRouteRequestError = (error: unknown): error is RouteRequestError =>
   Schema.is(RouteRequestError)(error);
-
-const errorMessage = (error: unknown): string => {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-  ) {
-    return (error as { message: string }).message;
-  }
-  if (typeof error === "string" && error.trim().length > 0) {
-    return error;
-  }
-  return String(error);
-};
 
 export const createServer = Effect.fn(function* (): Effect.fn.Return<
   http.Server,
@@ -469,131 +442,21 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
     void Effect.runPromise(
       Effect.gen(function* () {
         const url = new URL(req.url ?? "/", `http://localhost:${port}`);
-        if (isWebPushConfigRequest(req.method, url.pathname)) {
-          const response = buildWebPushConfigResponse({
-            enabled: webPushNotifications.config.enabled,
-            publicKey: webPushNotifications.config.publicKey,
-          });
-          respond(
-            200,
-            {
-              "Cache-Control": "no-store",
-              "Content-Type": "application/json; charset=utf-8",
-            },
-            JSON.stringify(response),
-          );
-          return;
-        }
+        const configuredStaticRoot = staticDir ? path.resolve(staticDir) : null;
 
-        if (url.pathname === "/api/web-push/config") {
-          respond(405, { Allow: "GET", "Content-Type": "text/plain" }, "Method Not Allowed");
-          return;
-        }
-
-        if (isWebPushSubscribeRequest(req.method, url.pathname)) {
-          if (!webPushNotifications.config.enabled) {
-            respond(
-              409,
-              { "Content-Type": "text/plain" },
-              "Web push notifications are not configured on this server.",
-            );
-            return;
-          }
-          if (!hasJsonContentType(req)) {
-            respond(415, { "Content-Type": "text/plain" }, "Expected application/json body");
-            return;
-          }
-          if (!isAllowedOrigin(req)) {
-            respond(403, { "Content-Type": "text/plain" }, "Forbidden origin");
-            return;
-          }
-
-          const jsonBody = yield* Effect.tryPromise<unknown, RouteRequestError>({
-            try: () => readJsonRequestBody(req),
-            catch: (error) =>
-              new RouteRequestError({
-                message: toBadJsonError(error).message,
-              }),
-          });
-          const body = decodePutSubscriptionBody(jsonBody);
-          if (body instanceof Error) {
-            return yield* new RouteRequestError({
-              message: body.message,
-            });
-          }
-
-          yield* webPushNotifications
-            .subscribe({
-              subscription: body.subscription,
-              userAgent: body.userAgent ?? null,
-              appVersion: body.appVersion ?? null,
-            })
-            .pipe(
-              Effect.mapError(
-                (error) =>
-                  new RouteRequestError({
-                    message: errorMessage(error),
-                  }),
-              ),
-            );
-          respond(204, { "Cache-Control": "no-store" });
-          return;
-        }
-
-        if (isWebPushUnsubscribeRequest(req.method, url.pathname)) {
-          if (!webPushNotifications.config.enabled) {
-            respond(
-              409,
-              { "Content-Type": "text/plain" },
-              "Web push notifications are not configured on this server.",
-            );
-            return;
-          }
-          if (!hasJsonContentType(req)) {
-            respond(415, { "Content-Type": "text/plain" }, "Expected application/json body");
-            return;
-          }
-          if (!isAllowedOrigin(req)) {
-            respond(403, { "Content-Type": "text/plain" }, "Forbidden origin");
-            return;
-          }
-
-          const jsonBody = yield* Effect.tryPromise<unknown, RouteRequestError>({
-            try: () => readJsonRequestBody(req),
-            catch: (error) =>
-              new RouteRequestError({
-                message: toBadJsonError(error).message,
-              }),
-          });
-          const body = decodeDeleteSubscriptionBody(jsonBody);
-          if (body instanceof Error) {
-            return yield* new RouteRequestError({
-              message: body.message,
-            });
-          }
-
-          yield* webPushNotifications
-            .unsubscribe({
-              subscription: body.subscription,
-            })
-            .pipe(
-              Effect.mapError(
-                (error) =>
-                  new RouteRequestError({
-                    message: errorMessage(error),
-                  }),
-              ),
-            );
-          respond(204, { "Cache-Control": "no-store" });
-          return;
-        }
-
-        if (url.pathname === "/api/web-push/subscription") {
-          respond(
-            405,
-            { Allow: "PUT, DELETE", "Content-Type": "text/plain" },
-            "Method Not Allowed",
-          );
+        if (
+          yield* tryHandleForkHttpRequest({
+            request: req,
+            response: res,
+            url,
+            serverConfig,
+            webPushNotifications,
+            fileSystem,
+            path,
+            staticRoot: configuredStaticRoot,
+            respond,
+          })
+        ) {
           return;
         }
 
@@ -678,38 +541,6 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         }
 
         const staticRoot = path.resolve(staticDir);
-        if (isForkBrandingManifestPath(url.pathname)) {
-          respond(
-            200,
-            { "Content-Type": "application/manifest+json; charset=utf-8" },
-            renderForkBrandingManifest(req),
-          );
-          return;
-        }
-
-        const brandingAssetRelativePath = getBrandingAssetRelativePath(url.pathname, req);
-        if (brandingAssetRelativePath) {
-          const brandingAssetPath = path.resolve(staticRoot, brandingAssetRelativePath);
-          const brandingAssetInfo = yield* fileSystem
-            .stat(brandingAssetPath)
-            .pipe(Effect.catch(() => Effect.succeed(null)));
-          if (!brandingAssetInfo || brandingAssetInfo.type !== "File") {
-            respond(404, { "Content-Type": "text/plain" }, "Not Found");
-            return;
-          }
-
-          const brandingContentType = Mime.getType(brandingAssetPath) ?? "application/octet-stream";
-          const brandingData = yield* fileSystem
-            .readFile(brandingAssetPath)
-            .pipe(Effect.catch(() => Effect.succeed(null)));
-          if (!brandingData) {
-            respond(500, { "Content-Type": "text/plain" }, "Internal Server Error");
-            return;
-          }
-
-          respond(200, { "Content-Type": brandingContentType }, brandingData);
-          return;
-        }
 
         const staticRequestPath = url.pathname === "/" ? "/index.html" : url.pathname;
         const rawStaticRelativePath = staticRequestPath.replace(/^[/\\]+/, "");
@@ -759,11 +590,16 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
             respond(404, { "Content-Type": "text/plain" }, "Not Found");
             return;
           }
-          respond(
-            200,
-            { "Content-Type": "text/html; charset=utf-8" },
-            applyForkBrandingToHtml(Buffer.from(indexData).toString("utf8"), req),
-          );
+          const htmlResponse = maybeBuildForkHtmlDocumentResponse({
+            html: Buffer.from(indexData).toString("utf8"),
+            request: req,
+            contentType: "text/html; charset=utf-8",
+          });
+          if (!htmlResponse) {
+            respond(500, { "Content-Type": "text/plain" }, "Internal Server Error");
+            return;
+          }
+          respond(htmlResponse.statusCode, htmlResponse.headers, htmlResponse.body);
           return;
         }
 
@@ -776,12 +612,15 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
           return;
         }
         if (contentType.includes("text/html")) {
-          respond(
-            200,
-            { "Content-Type": contentType },
-            applyForkBrandingToHtml(Buffer.from(data).toString("utf8"), req),
-          );
-          return;
+          const htmlResponse = maybeBuildForkHtmlDocumentResponse({
+            html: Buffer.from(data).toString("utf8"),
+            request: req,
+            contentType,
+          });
+          if (htmlResponse) {
+            respond(htmlResponse.statusCode, htmlResponse.headers, htmlResponse.body);
+            return;
+          }
         }
         respond(200, { "Content-Type": contentType }, data);
       }),
@@ -1168,7 +1007,16 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   httpServer.on("upgrade", (request, socket, head) => {
     socket.on("error", () => {}); // Prevent unhandled `EPIPE`/`ECONNRESET` from crashing the process if the client disconnects mid-handshake
 
-    if (authToken) {
+    if (authToken !== undefined) {
+      if (authToken === "") {
+        console.warn(
+          "[ws-auth] authToken is configured but empty — rejecting upgrade. " +
+            "Set a non-empty token or remove the auth configuration.",
+        );
+        rejectUpgrade(socket, 500, "Server auth misconfigured");
+        return;
+      }
+
       let providedToken: string | null = null;
       try {
         const url = new URL(request.url ?? "/", `http://localhost:${port}`);
@@ -1178,7 +1026,14 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         return;
       }
 
-      if (providedToken !== authToken) {
+      if (!providedToken) {
+        rejectUpgrade(socket, 401, "Unauthorized WebSocket connection");
+        return;
+      }
+
+      const a = Buffer.from(providedToken, "utf8");
+      const b = Buffer.from(authToken, "utf8");
+      if (a.byteLength !== b.byteLength || !crypto.timingSafeEqual(a, b)) {
         rejectUpgrade(socket, 401, "Unauthorized WebSocket connection");
         return;
       }
