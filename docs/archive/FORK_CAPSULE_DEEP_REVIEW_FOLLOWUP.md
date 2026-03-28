@@ -4,7 +4,7 @@ Date: 2026-03-26
 
 ## Context
 
-This document is a post-fixes code review of the current tree after the changes summarized in [FORK_CAPSULE_DEEP_REVIEW_FIXES.md](/home/claude/code/t3code/FORK_CAPSULE_DEEP_REVIEW_FIXES.md).
+This document is a post-fixes code review of the current tree after the changes summarized in [FORK_CAPSULE_DEEP_REVIEW_FIXES.md](/home/claude/code/t3code/docs/archive/FORK_CAPSULE_DEEP_REVIEW_FIXES.md).
 
 Its purpose is to validate the fixes doc against the actual codebase and to record the issues that remained after that fixes pass.
 
@@ -12,9 +12,9 @@ Status as of the current tree: the four concrete follow-up issues from this note
 
 Related documents:
 
-- [FORK_CAPSULE_DEEP_REVIEW.md](/home/claude/code/t3code/FORK_CAPSULE_DEEP_REVIEW.md)
-- [FORK_CAPSULE_DEEP_REVIEW_FIXES.md](/home/claude/code/t3code/FORK_CAPSULE_DEEP_REVIEW_FIXES.md)
-- [FORK_CAPSULE_STATUS.md](/home/claude/code/t3code/FORK_CAPSULE_STATUS.md)
+- [FORK_CAPSULE_DEEP_REVIEW.md](/home/claude/code/t3code/docs/archive/FORK_CAPSULE_DEEP_REVIEW.md)
+- [FORK_CAPSULE_DEEP_REVIEW_FIXES.md](/home/claude/code/t3code/docs/archive/FORK_CAPSULE_DEEP_REVIEW_FIXES.md)
+- [FORK_CAPSULE_STATUS.md](/home/claude/code/t3code/docs/archive/FORK_CAPSULE_STATUS.md)
 
 ## Findings Identified In The Follow-Up Review
 
@@ -85,7 +85,7 @@ The follow-up issues from this note are resolved.
 
 Remaining broader cleanup and hardening work is tracked in:
 
-- [FORK_CAPSULE_STATUS.md](/home/claude/code/t3code/FORK_CAPSULE_STATUS.md)
+- [FORK_CAPSULE_STATUS.md](/home/claude/code/t3code/docs/archive/FORK_CAPSULE_STATUS.md)
 - [docs/fork-architecture.md](/home/claude/code/t3code/docs/fork-architecture.md)
 - [docs/fork-acceptance-matrix.md](/home/claude/code/t3code/docs/fork-acceptance-matrix.md)
 
@@ -95,5 +95,5 @@ These findings originally came from code review and static inspection rather tha
 
 This historical note intentionally distinguishes:
 
-- what was reviewed and fixed in [FORK_CAPSULE_DEEP_REVIEW_FIXES.md](/home/claude/code/t3code/FORK_CAPSULE_DEEP_REVIEW_FIXES.md)
+- what was reviewed and fixed in [FORK_CAPSULE_DEEP_REVIEW_FIXES.md](/home/claude/code/t3code/docs/archive/FORK_CAPSULE_DEEP_REVIEW_FIXES.md)
 - what this follow-up review identified before those remaining fixes landed

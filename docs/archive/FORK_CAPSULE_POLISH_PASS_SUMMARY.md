@@ -76,7 +76,7 @@ Important follow-up hardening from review:
 
 These docs were updated to match the current architecture:
 
-- [FORK_CAPSULE_STATUS.md](/home/claude/code/t3code/FORK_CAPSULE_STATUS.md)
+- [FORK_CAPSULE_STATUS.md](/home/claude/code/t3code/docs/archive/FORK_CAPSULE_STATUS.md)
 - [docs/fork-architecture.md](/home/claude/code/t3code/docs/fork-architecture.md)
 - [docs/fork-acceptance-matrix.md](/home/claude/code/t3code/docs/fork-acceptance-matrix.md)
 - [UPSTREAM_SYNC_MIGRATION_LOG.md](/home/claude/code/t3code/UPSTREAM_SYNC_MIGRATION_LOG.md)

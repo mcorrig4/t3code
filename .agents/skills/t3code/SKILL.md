@@ -91,7 +91,7 @@ These constraints apply to ALL work types. They are non-negotiable.
 - [AGENTS.md](/home/claude/code/t3code/AGENTS.md) — repo policy, versioning, branching, GitHub boundaries
 - [docs/fork-architecture.md](/home/claude/code/t3code/docs/fork-architecture.md) — where fork behavior belongs
 - [docs/fork-acceptance-matrix.md](/home/claude/code/t3code/docs/fork-acceptance-matrix.md) — how to prove a capsule still works
-- [ENHANCEMENTS.md](/home/claude/code/t3code/ENHANCEMENTS.md) — why a fork change exists and when to remove it
+- [ENHANCEMENTS.md](/home/claude/code/t3code/ENHANCEMENTS.md) — capsule-grouped ledger: why a fork change exists and when to remove it
 - [UPSTREAM_SYNC_MIGRATION_LOG.md](/home/claude/code/t3code/UPSTREAM_SYNC_MIGRATION_LOG.md) — how sync and reapplication currently work
 - [BRANCHES.md](/home/claude/code/t3code/BRANCHES.md) and [/home/claude/T3CODE_OPERATIONS.md](/home/claude/T3CODE_OPERATIONS.md) — branch safety, promotion, and runtime operations
 

@@ -112,7 +112,7 @@ The phase wrappers exist for continuity; the capsule seams are now the long-term
   - keep the upstream settings framework intact and layer fork-only Codex session overrides into the existing advanced install controls instead of reviving the older fork settings page wholesale
   - web push settings stay coupled to the later push sidecar phase so the sync branch does not grow a half-wired settings surface before the server and client notification layers return
   - the current fork keeps fork-only settings in `t3code:fork-settings:v1`, with upstream dirty/reset composition flowing through `apps/web/src/settings/resetPlan.ts` and the combined route seam in `apps/web/src/fork/settings/useForkSettingsResetPlan.ts`
-  - see [FORK_SETTINGS_SIDECAR_PLAN.md](/home/claude/code/t3code/FORK_SETTINGS_SIDECAR_PLAN.md)
+  - see [FORK_SETTINGS_SIDECAR_PLAN.md](/home/claude/code/t3code/docs/archive/FORK_SETTINGS_SIDECAR_PLAN.md) (archived)
 
 ### Phase 5: Native TTS
 
@@ -168,7 +168,7 @@ The phase wrappers exist for continuity; the capsule seams are now the long-term
   - [sync-phase-9-settings-sidecar.mjs](/home/claude/code/t3code/apps/web/e2e/sync-phase-9-settings-sidecar.mjs)
 - Notes:
   - keep the canonical app settings store unless a future setting is truly sidecar-only
-  - use [FORK_SETTINGS_SIDECAR_PLAN.md](/home/claude/code/t3code/FORK_SETTINGS_SIDECAR_PLAN.md) as the target architecture
+  - use [FORK_SETTINGS_SIDECAR_PLAN.md](/home/claude/code/t3code/docs/archive/FORK_SETTINGS_SIDECAR_PLAN.md) as the target architecture (archived)
   - this phase extracts the fork-owned Notifications, Codex session overrides, and Diagnostics controls behind a single `ForkSettingsSection` seam so `_chat.settings.tsx` can stay closer to upstream
   - the upstream settings route should now treat `ForkSettingsSection` as the only fork-owned insertion point for settings UI unless a future feature has a very strong reason to live beside an upstream control
 

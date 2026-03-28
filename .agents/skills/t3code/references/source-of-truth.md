@@ -47,12 +47,13 @@ Acceptance matrix means: how to prove it still works.
 
 Use this for:
 
-- enhancement history
-- intentional seam
-- sync risk
+- capsule-grouped enhancement inventory
+- intentional seam and files touched
+- upstream impact and replacement triggers
 - rollback notes
-- upstream replacement trigger
-- removal signal
+- verification steps
+
+Entries are grouped by capsule. The detailed historical format from the initial buildout is archived at [docs/archive/ENHANCEMENTS-v1-detailed.md](/home/claude/code/t3code/docs/archive/ENHANCEMENTS-v1-detailed.md).
 
 Enhancements means: why it exists and when to remove it.
 

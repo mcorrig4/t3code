@@ -8,7 +8,7 @@ Use this together with:
 - [docs/fork-architecture.md](/home/claude/code/t3code/docs/fork-architecture.md) for the current capsule/seam map
 - [docs/fork-acceptance-matrix.md](/home/claude/code/t3code/docs/fork-acceptance-matrix.md) for required coverage
 - [UPSTREAM_SYNC_MIGRATION_LOG.md](/home/claude/code/t3code/UPSTREAM_SYNC_MIGRATION_LOG.md) for reapplication workflow
-- [ENHANCEMENTS.md](/home/claude/code/t3code/ENHANCEMENTS.md) for the historical ledger and removal triggers
+- [ENHANCEMENTS.md](/home/claude/code/t3code/ENHANCEMENTS.md) for the capsule-grouped enhancement ledger and removal triggers
 
 ## Core Rule
 

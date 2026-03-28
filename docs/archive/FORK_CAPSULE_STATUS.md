@@ -6,7 +6,7 @@ The Fork Capsule Hardening And Syncability Plan V4 is mostly implemented.
 
 The major capsule seams now exist in code, the highest-risk reliability and auth fixes are landed, and the repo is back to a clean verification state for formatter, lint, typecheck, and targeted capsule tests.
 
-A post-fixes validation review is tracked separately in [FORK_CAPSULE_DEEP_REVIEW_FOLLOWUP.md](/home/claude/code/t3code/FORK_CAPSULE_DEEP_REVIEW_FOLLOWUP.md), which now serves as a historical record of issues that have since been fixed.
+A post-fixes validation review is tracked separately in [FORK_CAPSULE_DEEP_REVIEW_FOLLOWUP.md](/home/claude/code/t3code/docs/archive/FORK_CAPSULE_DEEP_REVIEW_FOLLOWUP.md), which now serves as a historical record of issues that have since been fixed.
 
 What remains is mostly follow-up tightening rather than missing core implementation:
 

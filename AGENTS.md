@@ -17,7 +17,7 @@
 
 T3 Code is a minimal web GUI for using coding agents like Codex and Claude.
 
-This repository is a VERY EARLY WIP. Proposing sweeping changes that improve long-term maintainability is encouraged.
+This repository is a maintained fork of `pingdotgg/t3code` with a capsule-aligned architecture, 21 active enhancements, and structured sync infrastructure. Proposing changes that improve long-term maintainability is encouraged.
 
 ## Core Priorities
 
@@ -31,7 +31,7 @@ If a tradeoff is required, choose correctness and robustness over short-term con
 
 For any fork-specific work — new features, upstream syncs, capsule design, CSS overrides, testing, branching, or GitHub contributions — invoke the `t3code-fork-engineering` skill first. It routes you to the right docs, procedures, and design principles.
 
-This is the primary entry point for fork engineering guidance in this repo. The repo-local skill lives at [.agents/skills/t3code/SKILL.md](/home/claude/code/t3code/.agents/skills/t3code/SKILL.md) and its `references/` directory provides the deeper playbooks and decision trees.
+This is the primary entry point for fork engineering guidance in this repo. The repo-local skill lives at [.agents/skills/t3code/SKILL.md](/home/claude/code/t3code/.agents/skills/t3code/SKILL.md) and its `references/` directory contains 14 specialized guides covering decision trees, capsule patterns, CSS overrides, sync workflows, testing, upstream impact detection, and source-of-truth routing.
 
 ## Maintainability
 
@@ -41,8 +41,8 @@ Long term maintainability is a core priority. If you add new functionality, firs
 - Before changing core behavior broadly, first consider whether the same outcome can be achieved with a smaller, more modular extension point that keeps the upstream diff narrow and easier to reason about.
 - Follow [docs/fork-engineering-playbook.md](/home/claude/code/t3code/docs/fork-engineering-playbook.md) when designing new fork enhancements, fixes, or sync reapplications.
 - Every fork-specific enhancement, bug fix, behavior change, deployment customization, or operational deviation from upstream must be recorded in `ENHANCEMENTS.md`.
-- Keep `ENHANCEMENTS.md` detailed enough that we could theoretically recreate our fork-specific behavior from scratch, and use it as both a historical changelog and a sync-review ledger when comparing incoming upstream changes against our local modifications.
-- During upstream sync planning or conflict review, consult `ENHANCEMENTS.md` to decide whether a local change should stay, be dropped in favor of upstream, or be merged with an upstream alternative implementation.
+- `ENHANCEMENTS.md` entries are grouped by capsule and use a compact format. Keep each entry detailed enough to recreate the fork behavior from scratch. The detailed historical format from the initial buildout is archived at [docs/archive/ENHANCEMENTS-v1-detailed.md](docs/archive/ENHANCEMENTS-v1-detailed.md).
+- During upstream sync planning or conflict review, consult `ENHANCEMENTS.md` capsule-by-capsule to decide whether a local change should stay, be dropped in favor of upstream, or be merged with an upstream alternative implementation.
 - Upstream syncs must treat `pingdotgg/t3code` as the source snapshot. Do not preserve fork behavior by cherry-picking old fork commits directly onto an already-drifted branch.
 - The correct upstream sync model is:
   - start from the exact new `upstream/main` snapshot
