@@ -27,12 +27,19 @@ This repository is a VERY EARLY WIP. Proposing sweeping changes that improve lon
 
 If a tradeoff is required, choose correctness and robustness over short-term convenience.
 
+## Fork Engineering Skill
+
+For any fork-specific work — new features, upstream syncs, capsule design, CSS overrides, testing, branching, or GitHub contributions — invoke the `t3code-fork-engineering` skill first. It routes you to the right docs, procedures, and design principles.
+
+This is the primary entry point for fork engineering guidance in this repo. The repo-local skill lives at [.agents/skills/t3code/SKILL.md](/home/claude/code/t3code/.agents/skills/t3code/SKILL.md) and its `references/` directory provides the deeper playbooks and decision trees.
+
 ## Maintainability
 
 Long term maintainability is a core priority. If you add new functionality, first check if there is shared logic that can be extracted to a separate module. Duplicate logic across multiple files is a code smell and should be avoided. Don't be afraid to change existing code. Don't take shortcuts by just adding local logic to solve a problem.
 
 - When adding a fork-specific feature, prefer modular patterns that minimize churn in the core codebase, such as sidecar modules, isolated adapters, thin integration seams, CSS overrides, feature-specific routes, or other self-contained layers that are easy to carry during upstream syncs.
 - Before changing core behavior broadly, first consider whether the same outcome can be achieved with a smaller, more modular extension point that keeps the upstream diff narrow and easier to reason about.
+- Follow [docs/fork-engineering-playbook.md](/home/claude/code/t3code/docs/fork-engineering-playbook.md) when designing new fork enhancements, fixes, or sync reapplications.
 - Every fork-specific enhancement, bug fix, behavior change, deployment customization, or operational deviation from upstream must be recorded in `ENHANCEMENTS.md`.
 - Keep `ENHANCEMENTS.md` detailed enough that we could theoretically recreate our fork-specific behavior from scratch, and use it as both a historical changelog and a sync-review ledger when comparing incoming upstream changes against our local modifications.
 - During upstream sync planning or conflict review, consult `ENHANCEMENTS.md` to decide whether a local change should stay, be dropped in favor of upstream, or be merged with an upstream alternative implementation.
@@ -54,6 +61,14 @@ Long term maintainability is a core priority. If you add new functionality, firs
   - keep upstream-owned settings layout intact wherever practical
   - colocate fork-only runtime wiring behind small helpers/adapters instead of expanding upstream settings codepaths broadly
 - For fork-specific CSS overrides, tag the target element with a `data-slot` attribute and put the rule in `apps/web/src/overrides.css`. Never modify inline Tailwind classes in upstream components for fork-only styling.
+- Required checklist for every new fork change:
+  - define or reuse a clear seam
+  - keep the implementation in fork-owned files wherever practical
+  - update `ENHANCEMENTS.md`
+  - update [docs/fork-architecture.md](/home/claude/code/t3code/docs/fork-architecture.md) if the seam changed
+  - update [docs/fork-acceptance-matrix.md](/home/claude/code/t3code/docs/fork-acceptance-matrix.md) if verification changed
+  - add or update automated verification
+  - document rollback and upstream-replacement/removal triggers
 
 ## Repository Boundaries
 
@@ -66,9 +81,10 @@ Long term maintainability is a core priority. If you add new functionality, firs
 ## Fork Versioning
 
 - Keep the core semver in our fork aligned with the current upstream release version from `pingdotgg/t3code` so it is easy to see what upstream release line we are building on.
-- For fork releases, use the tag format `v<upstream-semver>-<upstream-sync-date>.<n>`.
+- For fork releases, use the tag format `v<upstream-semver>-<upstream-sync-date>.<n>[-<pre>]`.
+- The optional `[-<pre>]` suffix marks pre-release maturity: `-alpha`, `-beta`, `-rc1`, `-rc2`, etc. Omitting it means a stable fork release.
 - The `upstream-sync-date` must be the `YYYYMMDD` date when `main` last absorbed changes from `upstream/main`, not the date we happen to cut a release tag later.
-- Example: if upstream is `0.0.13` and our last upstream sync landed on March 20, 2026, our fork release sequence should be `v0.0.13-20260320.1`, `v0.0.13-20260320.2`, `v0.0.13-20260320.3`, and so on.
+- Example: if upstream is `0.0.13` and our last upstream sync landed on March 20, 2026, our fork release sequence should be `v0.0.13-20260320.1`, `v0.0.13-20260320.2-alpha`, `v0.0.13-20260320.3-rc1`, `v0.0.13-20260320.4`, and so on.
 - Reset the fork counter whenever either the upstream semver base changes or a newer upstream sync date becomes the new baseline. Example: after syncing to upstream `0.0.14` on April 10, 2026, the next fork release becomes `v0.0.14-20260410.1`.
 - Before creating a new fork release tag, confirm both:
   - the current upstream version from `upstream/main`
