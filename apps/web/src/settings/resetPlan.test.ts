@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_UNIFIED_SETTINGS } from "@t3tools/contracts/settings";
 
 import { buildUpstreamSettingsDirtyLabels, buildUpstreamSettingsResetPlan } from "./resetPlan";
 
@@ -8,31 +9,25 @@ describe("buildUpstreamSettingsDirtyLabels", () => {
       buildUpstreamSettingsDirtyLabels({
         theme: "dark",
         settings: {
-          claudeBinaryPath: "/tmp/claude",
-          codexBinaryPath: "",
-          codexHomePath: "",
+          ...DEFAULT_UNIFIED_SETTINGS,
           confirmThreadDelete: false,
-          customClaudeModels: [],
-          customCodexModels: ["custom/codex-model"],
           defaultThreadEnvMode: "worktree",
           diffWordWrap: true,
           enableAssistantStreaming: true,
-          textGenerationModel: "custom-model",
           timestampFormat: "24-hour",
+          textGenerationModelSelection: {
+            provider: "codex",
+            model: "gpt-5.4",
+          },
+          providers: {
+            ...DEFAULT_UNIFIED_SETTINGS.providers,
+            claudeAgent: {
+              ...DEFAULT_UNIFIED_SETTINGS.providers.claudeAgent,
+              binaryPath: "/tmp/claude",
+            },
+          },
         },
-        defaults: {
-          claudeBinaryPath: "",
-          codexBinaryPath: "",
-          codexHomePath: "",
-          confirmThreadDelete: true,
-          customClaudeModels: [],
-          customCodexModels: [],
-          defaultThreadEnvMode: "local",
-          diffWordWrap: false,
-          enableAssistantStreaming: false,
-          textGenerationModel: undefined,
-          timestampFormat: "locale",
-        },
+        defaults: DEFAULT_UNIFIED_SETTINGS,
       }),
     ).toEqual([
       "Theme",
@@ -42,14 +37,13 @@ describe("buildUpstreamSettingsDirtyLabels", () => {
       "New thread mode",
       "Delete confirmation",
       "Git writing model",
-      "Custom models",
-      "Provider installs",
+      "Providers",
     ]);
   });
 });
 
 describe("buildUpstreamSettingsResetPlan", () => {
-  it("resets the theme and canonical app settings together", () => {
+  it("resets the theme and canonical unified settings together", () => {
     const setTheme = vi.fn();
     const resetSettings = vi.fn();
 
@@ -57,32 +51,8 @@ describe("buildUpstreamSettingsResetPlan", () => {
       theme: "dark",
       setTheme,
       resetSettings,
-      settings: {
-        claudeBinaryPath: "",
-        codexBinaryPath: "",
-        codexHomePath: "",
-        confirmThreadDelete: true,
-        customClaudeModels: [],
-        customCodexModels: [],
-        defaultThreadEnvMode: "local",
-        diffWordWrap: false,
-        enableAssistantStreaming: false,
-        textGenerationModel: undefined,
-        timestampFormat: "locale",
-      },
-      defaults: {
-        claudeBinaryPath: "",
-        codexBinaryPath: "",
-        codexHomePath: "",
-        confirmThreadDelete: true,
-        customClaudeModels: [],
-        customCodexModels: [],
-        defaultThreadEnvMode: "local",
-        diffWordWrap: false,
-        enableAssistantStreaming: false,
-        textGenerationModel: undefined,
-        timestampFormat: "locale",
-      },
+      settings: DEFAULT_UNIFIED_SETTINGS,
+      defaults: DEFAULT_UNIFIED_SETTINGS,
     });
 
     expect(resetPlan.hasChanges).toBe(true);

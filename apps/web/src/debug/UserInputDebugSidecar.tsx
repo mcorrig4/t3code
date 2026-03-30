@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { UserInputDebugPanel } from "../components/debug/UserInputDebugPanel";
+import { logCrashBreadcrumb } from "./crashDebug";
 import { logUserInputDebug } from "./userInputDebug";
 
 function withDetail(detail: string | undefined): { detail: string } | undefined {
@@ -9,6 +10,12 @@ function withDetail(detail: string | undefined): { detail: string } | undefined 
 
 export function UserInputDebugSidecar() {
   useEffect(() => {
+    logCrashBreadcrumb({
+      level: "info",
+      stage: "debug-panel-mounted",
+      message: "Fork debug panel sidecar mounted.",
+    });
+
     const onError = (event: ErrorEvent) => {
       logUserInputDebug({
         level: "error",

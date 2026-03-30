@@ -7,6 +7,7 @@ import "@xterm/xterm/css/xterm.css";
 import "./index.css";
 import "./overrides.css";
 
+import { APP_DISPLAY_NAME } from "./branding";
 import { isElectron } from "./env";
 import { installForkWebShell } from "./fork/bootstrap";
 import { getRouter } from "./router";
@@ -20,6 +21,7 @@ const forkWebShell = installForkWebShell({
   doc: document,
   hostname: window.location.hostname,
 });
+document.title = APP_DISPLAY_NAME;
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>

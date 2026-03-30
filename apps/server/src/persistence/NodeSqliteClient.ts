@@ -109,7 +109,11 @@ const makeWithDatabase = (
         lookup: (sql: string) =>
           Effect.try({
             try: () => db.prepare(sql),
-            catch: (cause) => new SqlError({ cause, message: "Failed to prepare statement" }),
+            catch: (cause) =>
+              new SqlError({
+                cause,
+                message: "Failed to prepare statement",
+              }),
           }),
       });
 
@@ -127,7 +131,12 @@ const makeWithDatabase = (
             const result = statement.run(...(params as any));
             return Effect.succeed(raw ? (result as unknown as ReadonlyArray<any>) : []);
           } catch (cause) {
-            return Effect.fail(new SqlError({ cause, message: "Failed to execute statement" }));
+            return Effect.fail(
+              new SqlError({
+                cause,
+                message: "Failed to execute statement",
+              }),
+            );
           }
         });
 
@@ -150,7 +159,11 @@ const makeWithDatabase = (
                 statement.run(...(params as any));
                 return [];
               },
-              catch: (cause) => new SqlError({ cause, message: "Failed to execute statement" }),
+              catch: (cause) =>
+                new SqlError({
+                  cause,
+                  message: "Failed to execute statement",
+                }),
             }),
           (statement) =>
             Effect.sync(() => {

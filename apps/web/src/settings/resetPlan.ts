@@ -1,20 +1,16 @@
-import { DEFAULT_GIT_TEXT_GENERATION_MODEL } from "@t3tools/contracts";
-import type { AppSettings } from "../appSettings";
+import { Equal } from "effect";
+import { DEFAULT_UNIFIED_SETTINGS, type UnifiedSettings } from "@t3tools/contracts/settings";
 
 type ThemePreference = "light" | "dark" | "system";
 
-type ResettableAppSettings = Pick<
-  AppSettings,
-  | "claudeBinaryPath"
-  | "codexBinaryPath"
-  | "codexHomePath"
+type ResettableUnifiedSettings = Pick<
+  UnifiedSettings,
   | "confirmThreadDelete"
-  | "customClaudeModels"
-  | "customCodexModels"
   | "defaultThreadEnvMode"
   | "diffWordWrap"
   | "enableAssistantStreaming"
-  | "textGenerationModel"
+  | "providers"
+  | "textGenerationModelSelection"
   | "timestampFormat"
 >;
 
@@ -26,19 +22,14 @@ export interface UpstreamSettingsResetPlan {
 
 export function buildUpstreamSettingsDirtyLabels(input: {
   readonly theme: ThemePreference;
-  readonly settings: ResettableAppSettings;
-  readonly defaults: ResettableAppSettings;
+  readonly settings: ResettableUnifiedSettings;
+  readonly defaults: ResettableUnifiedSettings;
 }): ReadonlyArray<string> {
-  const currentGitTextGenerationModel =
-    input.settings.textGenerationModel ?? DEFAULT_GIT_TEXT_GENERATION_MODEL;
-  const defaultGitTextGenerationModel =
-    input.defaults.textGenerationModel ?? DEFAULT_GIT_TEXT_GENERATION_MODEL;
-  const isGitTextGenerationModelDirty =
-    currentGitTextGenerationModel !== defaultGitTextGenerationModel;
-  const isInstallSettingsDirty =
-    input.settings.claudeBinaryPath !== input.defaults.claudeBinaryPath ||
-    input.settings.codexBinaryPath !== input.defaults.codexBinaryPath ||
-    input.settings.codexHomePath !== input.defaults.codexHomePath;
+  const isProviderSettingsDirty = !Equal.equals(input.settings.providers, input.defaults.providers);
+  const isGitWritingModelDirty = !Equal.equals(
+    input.settings.textGenerationModelSelection ?? null,
+    input.defaults.textGenerationModelSelection ?? null,
+  );
 
   return [
     ...(input.theme !== "system" ? ["Theme"] : []),
@@ -53,19 +44,16 @@ export function buildUpstreamSettingsDirtyLabels(input: {
     ...(input.settings.confirmThreadDelete !== input.defaults.confirmThreadDelete
       ? ["Delete confirmation"]
       : []),
-    ...(isGitTextGenerationModelDirty ? ["Git writing model"] : []),
-    ...(input.settings.customCodexModels.length > 0 || input.settings.customClaudeModels.length > 0
-      ? ["Custom models"]
-      : []),
-    ...(isInstallSettingsDirty ? ["Provider installs"] : []),
+    ...(isGitWritingModelDirty ? ["Git writing model"] : []),
+    ...(isProviderSettingsDirty ? ["Providers"] : []),
   ];
 }
 
 export function buildUpstreamSettingsResetPlan(input: {
   readonly theme: ThemePreference;
   readonly setTheme: (theme: ThemePreference) => void;
-  readonly settings: ResettableAppSettings;
-  readonly defaults: ResettableAppSettings;
+  readonly settings: ResettableUnifiedSettings;
+  readonly defaults: ResettableUnifiedSettings;
   readonly resetSettings: () => void;
 }): UpstreamSettingsResetPlan {
   const upstreamDirtyLabels = buildUpstreamSettingsDirtyLabels({
@@ -76,7 +64,8 @@ export function buildUpstreamSettingsResetPlan(input: {
 
   return {
     upstreamDirtyLabels,
-    hasChanges: upstreamDirtyLabels.length > 0,
+    hasChanges:
+      upstreamDirtyLabels.length > 0 || !Equal.equals(input.defaults, DEFAULT_UNIFIED_SETTINGS),
     resetUpstreamSettings: () => {
       input.setTheme("system");
       input.resetSettings();

@@ -14,7 +14,6 @@ import {
   type ProviderApprovalDecision,
   type ProviderEvent,
   type ProviderSession,
-  type ProviderSessionStartInput,
   type ProviderTurnStartResult,
   RuntimeMode,
   ProviderInteractionMode,
@@ -131,7 +130,8 @@ export interface CodexAppServerStartSessionInput {
   readonly model?: string;
   readonly serviceTier?: string;
   readonly resumeCursor?: unknown;
-  readonly providerOptions?: ProviderSessionStartInput["providerOptions"];
+  readonly binaryPath: string;
+  readonly homePath?: string;
   readonly runtimeMode: RuntimeMode;
 }
 
@@ -550,16 +550,14 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
         updatedAt: now,
       };
 
-      const codexOptions = readCodexProviderOptions(input);
-      const codexBinaryPath = codexOptions.binaryPath ?? "codex";
-      const codexHomePath = codexOptions.homePath;
-      const codexAppServerArgs = buildCodexAppServerCommandArgs(codexOptions.configOverrides);
+      const codexBinaryPath = input.binaryPath;
+      const codexHomePath = input.homePath;
       this.assertSupportedCodexCliVersion({
         binaryPath: codexBinaryPath,
         cwd: resolvedCwd,
         ...(codexHomePath ? { homePath: codexHomePath } : {}),
       });
-      const child = spawn(codexBinaryPath, codexAppServerArgs, {
+      const child = spawn(codexBinaryPath, ["app-server"], {
         cwd: resolvedCwd,
         env: {
           ...process.env,
@@ -1057,7 +1055,7 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
           continue;
         }
 
-        this.emitErrorEvent(context, "process/stderr", classified.message);
+        this.emitNotificationEvent(context, "process/stderr", classified.message);
       }
     });
 
@@ -1365,6 +1363,22 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
     });
   }
 
+  private emitNotificationEvent(
+    context: CodexSessionContext,
+    method: string,
+    message: string,
+  ): void {
+    this.emitEvent({
+      id: EventId.makeUnsafe(randomUUID()),
+      kind: "notification",
+      provider: "codex",
+      threadId: context.session.threadId,
+      createdAt: new Date().toISOString(),
+      method,
+      message,
+    });
+  }
+
   private emitEvent(event: ProviderEvent): void {
     this.emit("event", event);
   }
@@ -1601,24 +1615,6 @@ function normalizeProviderThreadId(value: string | undefined): string | undefine
   return brandIfNonEmpty(value, (normalized) => normalized);
 }
 
-function readCodexProviderOptions(input: CodexAppServerStartSessionInput): {
-  readonly binaryPath?: string;
-  readonly homePath?: string;
-  readonly configOverrides?: ReadonlyArray<string>;
-} {
-  const options = input.providerOptions?.codex;
-  if (!options) {
-    return {};
-  }
-  return {
-    ...(options.binaryPath ? { binaryPath: options.binaryPath } : {}),
-    ...(options.homePath ? { homePath: options.homePath } : {}),
-    ...(options.configOverrides && options.configOverrides.length > 0
-      ? { configOverrides: options.configOverrides }
-      : {}),
-  };
-}
-
 function assertSupportedCodexCliVersion(input: {
   readonly binaryPath: string;
   readonly cwd: string;
@@ -1672,7 +1668,11 @@ function readResumeCursorThreadId(resumeCursor: unknown): string | undefined {
   return typeof rawThreadId === "string" ? normalizeProviderThreadId(rawThreadId) : undefined;
 }
 
-function readResumeThreadId(input: CodexAppServerStartSessionInput): string | undefined {
+function readResumeThreadId(input: {
+  readonly resumeCursor?: unknown;
+  readonly threadId?: ThreadId;
+  readonly runtimeMode?: RuntimeMode;
+}): string | undefined {
   return readResumeCursorThreadId(input.resumeCursor);
 }
 

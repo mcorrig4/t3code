@@ -169,7 +169,7 @@ export function ForkSettingsSection() {
 
         <ForkSettingsCard
           title="Diagnostics"
-          description="Open the fork-only user input debug sidecar without editing the URL."
+          description="Open the fork-only debug sidecar for user-input breadcrumbs and crash/OOM diagnostics without editing the URL."
         >
           <div className="rounded-lg border border-border bg-background px-3 py-3">
             <p className="text-sm font-medium text-foreground">Status</p>

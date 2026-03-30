@@ -22,16 +22,35 @@ import { Open } from "./open";
 import * as SqlitePersistence from "./persistence/Layers/Sqlite";
 import { makeServerProviderLayer, makeServerRuntimeServicesLayer } from "./serverLayers";
 import { ProjectionSnapshotQuery } from "./orchestration/Services/ProjectionSnapshotQuery";
-import { ProviderHealthLive } from "./provider/Layers/ProviderHealth";
+import { ProviderRegistryLive } from "./provider/Layers/ProviderRegistry";
 import { Server } from "./wsServer";
 import { ServerLoggerLive } from "./serverLogger";
 import { AnalyticsServiceLayerLive } from "./telemetry/Layers/AnalyticsService";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService";
+import { readBootstrapEnvelope } from "./bootstrap";
+import { ServerSettingsLive } from "./serverSettings";
 
 export class StartupError extends Data.TaggedError("StartupError")<{
   readonly message: string;
   readonly cause?: unknown;
 }> {}
+
+const PortSchema = Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }));
+
+const BootstrapEnvelopeSchema = Schema.Struct({
+  mode: Schema.optional(Schema.String),
+  port: Schema.optional(PortSchema),
+  host: Schema.optional(Schema.String),
+  t3Home: Schema.optional(Schema.String),
+  devUrl: Schema.optional(Schema.URLFromString),
+  noBrowser: Schema.optional(Schema.Boolean),
+  authToken: Schema.optional(Schema.String),
+  webPushVapidPublicKey: Schema.optional(Schema.String),
+  webPushVapidPrivateKey: Schema.optional(Schema.String),
+  webPushSubject: Schema.optional(Schema.String),
+  autoBootstrapProjectFromCwd: Schema.optional(Schema.Boolean),
+  logWebSocketEvents: Schema.optional(Schema.Boolean),
+});
 
 interface CliInput {
   readonly mode: Option.Option<RuntimeMode>;
@@ -41,9 +60,7 @@ interface CliInput {
   readonly devUrl: Option.Option<URL>;
   readonly noBrowser: Option.Option<boolean>;
   readonly authToken: Option.Option<string>;
-  readonly webPushVapidPublicKey: Option.Option<string>;
-  readonly webPushVapidPrivateKey: Option.Option<string>;
-  readonly webPushSubject: Option.Option<string>;
+  readonly bootstrapFd: Option.Option<number>;
   readonly autoBootstrapProjectFromCwd: Option.Option<boolean>;
   readonly logWebSocketEvents: Option.Option<boolean>;
 }
@@ -94,12 +111,8 @@ export class CliConfig extends ServiceMap.Service<CliConfig, CliConfigShape>()(
 const CliEnvConfig = Config.all({
   mode: Config.string("T3CODE_MODE").pipe(
     Config.option,
-    Config.map(
-      Option.match<RuntimeMode, string>({
-        onNone: () => "web",
-        onSome: (value) => (value === "desktop" ? "desktop" : "web"),
-      }),
-    ),
+    Config.map(Option.map((value) => (value === "desktop" ? "desktop" : "web"))),
+    Config.map(Option.getOrUndefined),
   ),
   port: Config.port("T3CODE_PORT").pipe(Config.option, Config.map(Option.getOrUndefined)),
   host: Config.string("T3CODE_HOST").pipe(Config.option, Config.map(Option.getOrUndefined)),
@@ -125,6 +138,10 @@ const CliEnvConfig = Config.all({
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
+  bootstrapFd: Config.int("T3CODE_BOOTSTRAP_FD").pipe(
+    Config.option,
+    Config.map(Option.getOrUndefined),
+  ),
   autoBootstrapProjectFromCwd: Config.boolean("T3CODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
@@ -137,6 +154,14 @@ const CliEnvConfig = Config.all({
 
 const resolveBooleanFlag = (flag: Option.Option<boolean>, envValue: boolean) =>
   Option.getOrElse(Option.filter(flag, Boolean), () => envValue);
+
+const resolveOptionPrecedence = <Value>(
+  ...values: ReadonlyArray<Option.Option<Value>>
+): Option.Option<Value> => Option.firstSomeOf(values);
+
+const isValidPort = (value: number): boolean => value >= 1 && value <= 65_535;
+const isRuntimeMode = (value: string): value is RuntimeMode =>
+  value === "web" || value === "desktop";
 
 const ServerConfigLive = (input: CliInput) =>
   Layer.effect(
@@ -151,44 +176,133 @@ const ServerConfigLive = (input: CliInput) =>
         ),
       );
 
-      const mode = Option.getOrElse(input.mode, () => env.mode);
+      const bootstrapFd = Option.getOrUndefined(input.bootstrapFd) ?? env.bootstrapFd;
+      const bootstrapEnvelope =
+        bootstrapFd !== undefined
+          ? yield* readBootstrapEnvelope(BootstrapEnvelopeSchema, bootstrapFd)
+          : Option.none();
 
-      const port = yield* Option.match(input.port, {
-        onSome: (value) => Effect.succeed(value),
-        onNone: () => {
-          if (env.port) {
-            return Effect.succeed(env.port);
-          }
-          if (mode === "desktop") {
-            return Effect.succeed(DEFAULT_PORT);
-          }
-          return findAvailablePort(DEFAULT_PORT);
+      const mode: RuntimeMode = Option.getOrElse(
+        resolveOptionPrecedence(
+          input.mode,
+          Option.fromUndefinedOr(env.mode),
+          Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+            Option.filter(Option.fromUndefinedOr(bootstrap.mode), isRuntimeMode),
+          ),
+        ),
+        () => "web",
+      );
+      const port = yield* Option.match(
+        resolveOptionPrecedence(
+          input.port,
+          Option.fromUndefinedOr(env.port),
+          Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+            Option.filter(Option.fromUndefinedOr(bootstrap.port), isValidPort),
+          ),
+        ),
+        {
+          onSome: (value) => Effect.succeed(value),
+          onNone: () => {
+            if (mode === "desktop") {
+              return Effect.succeed(DEFAULT_PORT);
+            }
+            return findAvailablePort(DEFAULT_PORT);
+          },
         },
-      });
+      );
 
-      const devUrl = Option.getOrElse(input.devUrl, () => env.devUrl);
-      const baseDir = yield* resolveBaseDir(Option.getOrUndefined(input.t3Home) ?? env.t3Home);
+      const devUrl = Option.getOrElse(
+        resolveOptionPrecedence(
+          input.devUrl,
+          Option.fromUndefinedOr(env.devUrl),
+          Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+            Option.fromUndefinedOr(bootstrap.devUrl),
+          ),
+        ),
+        () => undefined,
+      );
+      const baseDir = yield* resolveBaseDir(
+        Option.getOrUndefined(
+          resolveOptionPrecedence(
+            input.t3Home,
+            Option.fromUndefinedOr(env.t3Home),
+            Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+              Option.fromUndefinedOr(bootstrap.t3Home),
+            ),
+          ),
+        ),
+      );
       const derivedPaths = yield* deriveServerPaths(baseDir, devUrl);
-      const noBrowser = resolveBooleanFlag(input.noBrowser, env.noBrowser ?? mode === "desktop");
-      const authToken = Option.getOrUndefined(input.authToken) ?? env.authToken;
-      const webPushVapidPublicKey =
-        Option.getOrUndefined(input.webPushVapidPublicKey) ?? env.webPushVapidPublicKey;
-      const webPushVapidPrivateKey =
-        Option.getOrUndefined(input.webPushVapidPrivateKey) ?? env.webPushVapidPrivateKey;
-      const webPushSubject = Option.getOrUndefined(input.webPushSubject) ?? env.webPushSubject;
+      const noBrowser = resolveBooleanFlag(
+        input.noBrowser,
+        Option.getOrElse(
+          resolveOptionPrecedence(
+            Option.fromUndefinedOr(env.noBrowser),
+            Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+              Option.fromUndefinedOr(bootstrap.noBrowser),
+            ),
+          ),
+          () => mode === "desktop",
+        ),
+      );
+      const authToken = resolveOptionPrecedence(
+        input.authToken,
+        Option.fromUndefinedOr(env.authToken),
+        Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+          Option.fromUndefinedOr(bootstrap.authToken),
+        ),
+      );
+      const webPushVapidPublicKey = resolveOptionPrecedence(
+        Option.fromUndefinedOr(env.webPushVapidPublicKey),
+        Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+          Option.fromUndefinedOr(bootstrap.webPushVapidPublicKey),
+        ),
+      );
+      const webPushVapidPrivateKey = resolveOptionPrecedence(
+        Option.fromUndefinedOr(env.webPushVapidPrivateKey),
+        Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+          Option.fromUndefinedOr(bootstrap.webPushVapidPrivateKey),
+        ),
+      );
+      const webPushSubject = resolveOptionPrecedence(
+        Option.fromUndefinedOr(env.webPushSubject),
+        Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+          Option.fromUndefinedOr(bootstrap.webPushSubject),
+        ),
+      );
       const autoBootstrapProjectFromCwd = resolveBooleanFlag(
         input.autoBootstrapProjectFromCwd,
-        env.autoBootstrapProjectFromCwd ?? mode === "web",
+        Option.getOrElse(
+          resolveOptionPrecedence(
+            Option.fromUndefinedOr(env.autoBootstrapProjectFromCwd),
+            Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+              Option.fromUndefinedOr(bootstrap.autoBootstrapProjectFromCwd),
+            ),
+          ),
+          () => mode === "web",
+        ),
       );
       const logWebSocketEvents = resolveBooleanFlag(
         input.logWebSocketEvents,
-        env.logWebSocketEvents ?? Boolean(devUrl),
+        Option.getOrElse(
+          resolveOptionPrecedence(
+            Option.fromUndefinedOr(env.logWebSocketEvents),
+            Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+              Option.fromUndefinedOr(bootstrap.logWebSocketEvents),
+            ),
+          ),
+          () => Boolean(devUrl),
+        ),
       );
       const staticDir = devUrl ? undefined : yield* cliConfig.resolveStaticDir;
-      const host =
-        Option.getOrUndefined(input.host) ??
-        env.host ??
-        (mode === "desktop" ? "127.0.0.1" : undefined);
+      const host = Option.getOrElse(
+        resolveOptionPrecedence(
+          input.host,
+          Option.fromUndefinedOr(env.host),
+          Option.flatMap(bootstrapEnvelope, (bootstrap) => Option.fromUndefinedOr(bootstrap.host)),
+        ),
+        () => (mode === "desktop" ? "127.0.0.1" : undefined),
+      );
 
       const config: ServerConfigShape = {
         mode,
@@ -200,10 +314,10 @@ const ServerConfigLive = (input: CliInput) =>
         staticDir,
         devUrl,
         noBrowser,
-        authToken,
-        webPushVapidPublicKey,
-        webPushVapidPrivateKey,
-        webPushSubject,
+        authToken: Option.getOrUndefined(authToken),
+        webPushVapidPublicKey: Option.getOrUndefined(webPushVapidPublicKey),
+        webPushVapidPrivateKey: Option.getOrUndefined(webPushVapidPrivateKey),
+        webPushSubject: Option.getOrUndefined(webPushSubject),
         autoBootstrapProjectFromCwd,
         logWebSocketEvents,
       } satisfies ServerConfigShape;
@@ -216,10 +330,11 @@ const LayerLive = (input: CliInput) =>
   Layer.empty.pipe(
     Layer.provideMerge(makeServerRuntimeServicesLayer()),
     Layer.provideMerge(makeServerProviderLayer()),
-    Layer.provideMerge(ProviderHealthLive),
+    Layer.provideMerge(ProviderRegistryLive),
     Layer.provideMerge(SqlitePersistence.layerConfig),
     Layer.provideMerge(ServerLoggerLive),
     Layer.provideMerge(AnalyticsServiceLayerLive),
+    Layer.provideMerge(ServerSettingsLive),
     Layer.provideMerge(ServerConfigLive(input)),
   );
 
@@ -254,30 +369,12 @@ export const recordStartupHeartbeat = Effect.gen(function* () {
   });
 });
 
-const makeServerProgram = (input: CliInput) =>
+const makeServerRuntimeProgram = (input: CliInput) =>
   Effect.gen(function* () {
-    const cliConfig = yield* CliConfig;
     const { start, stopSignal } = yield* Server;
     const openDeps = yield* Open;
-    yield* cliConfig.fixPath;
 
     const config = yield* ServerConfig;
-    const configuredWebPushFieldCount = [
-      config.webPushVapidPublicKey,
-      config.webPushVapidPrivateKey,
-      config.webPushSubject,
-    ].filter((value) => typeof value === "string" && value.length > 0).length;
-
-    if (configuredWebPushFieldCount > 0 && configuredWebPushFieldCount < 3) {
-      yield* Effect.logWarning(
-        "web push configuration is incomplete; push notifications disabled",
-        {
-          hasPublicKey: Boolean(config.webPushVapidPublicKey),
-          hasPrivateKey: Boolean(config.webPushVapidPrivateKey),
-          hasSubject: Boolean(config.webPushSubject),
-        },
-      );
-    }
 
     if (!config.devUrl && !config.staticDir) {
       yield* Effect.logWarning(
@@ -296,19 +393,11 @@ const makeServerProgram = (input: CliInput) =>
       config.host && !isWildcardHost(config.host)
         ? `http://${formatHostForUrl(config.host)}:${config.port}`
         : localUrl;
-    const {
-      authToken,
-      devUrl,
-      webPushVapidPublicKey: _webPushVapidPublicKey,
-      webPushVapidPrivateKey: _webPushVapidPrivateKey,
-      webPushSubject: _webPushSubject,
-      ...safeConfig
-    } = config;
+    const { authToken, devUrl, ...safeConfig } = config;
     yield* Effect.logInfo("T3 Code running", {
       ...safeConfig,
       devUrl: devUrl?.toString(),
       authEnabled: Boolean(authToken),
-      webPushEnabled: configuredWebPushFieldCount === 3,
     });
 
     if (!config.noBrowser) {
@@ -325,6 +414,13 @@ const makeServerProgram = (input: CliInput) =>
     return yield* stopSignal;
   }).pipe(Effect.provide(LayerLive(input)));
 
+const makeServerProgram = (input: CliInput) =>
+  Effect.gen(function* () {
+    const cliConfig = yield* CliConfig;
+    yield* cliConfig.fixPath;
+    return yield* makeServerRuntimeProgram(input);
+  });
+
 /**
  * These flags mirrors the environment variables and the config shape.
  */
@@ -334,7 +430,7 @@ const modeFlag = Flag.choice("mode", ["web", "desktop"]).pipe(
   Flag.optional,
 );
 const portFlag = Flag.integer("port").pipe(
-  Flag.withSchema(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }))),
+  Flag.withSchema(PortSchema),
   Flag.withDescription("Port for the HTTP/WebSocket server."),
   Flag.optional,
 );
@@ -360,16 +456,9 @@ const authTokenFlag = Flag.string("auth-token").pipe(
   Flag.withAlias("token"),
   Flag.optional,
 );
-const webPushVapidPublicKeyFlag = Flag.string("web-push-vapid-public-key").pipe(
-  Flag.withDescription("VAPID public key used for Web Push."),
-  Flag.optional,
-);
-const webPushVapidPrivateKeyFlag = Flag.string("web-push-vapid-private-key").pipe(
-  Flag.withDescription("VAPID private key used for Web Push."),
-  Flag.optional,
-);
-const webPushSubjectFlag = Flag.string("web-push-subject").pipe(
-  Flag.withDescription("VAPID subject used for Web Push."),
+const bootstrapFdFlag = Flag.integer("bootstrap-fd").pipe(
+  Flag.withSchema(Schema.Int),
+  Flag.withDescription("Read one-time bootstrap secrets from the given file descriptor."),
   Flag.optional,
 );
 const autoBootstrapProjectFromCwdFlag = Flag.boolean("auto-bootstrap-project-from-cwd").pipe(
@@ -394,9 +483,7 @@ export const t3Cli = Command.make("t3", {
   devUrl: devUrlFlag,
   noBrowser: noBrowserFlag,
   authToken: authTokenFlag,
-  webPushVapidPublicKey: webPushVapidPublicKeyFlag,
-  webPushVapidPrivateKey: webPushVapidPrivateKeyFlag,
-  webPushSubject: webPushSubjectFlag,
+  bootstrapFd: bootstrapFdFlag,
   autoBootstrapProjectFromCwd: autoBootstrapProjectFromCwdFlag,
   logWebSocketEvents: logWebSocketEventsFlag,
 }).pipe(

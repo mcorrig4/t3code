@@ -28,9 +28,14 @@ Instead:
 
 ## Current Sync
 
-- Sync branch: `sync/upstream-20260324`
-- Upstream base commit: `be1abc88`
+- Sync branch: `sync/upstream-20260328`
+- Upstream base commit: `f47c1f10465762d108082aa687681c8461c5e017`
 - Local fork reference branch: `main`
+
+## Latest Reapply Notes
+
+- The repo-local fork skill and governance docs were restored from `main` into the sync branch so future fork work has the correct decision tree and acceptance matrix available before any further capsule rebinds.
+- The remaining branch-local docs are being treated separately from the governance stack so the sync can stay focused on source-of-truth policy and retained fork capsules.
 
 ## Phase Structure
 

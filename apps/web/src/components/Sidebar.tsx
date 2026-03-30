@@ -41,8 +41,7 @@ import { useLocation, useNavigate, useParams } from "@tanstack/react-router";
 import {
   type SidebarProjectSortOrder,
   type SidebarThreadSortOrder,
-  useAppSettings,
-} from "../appSettings";
+} from "@t3tools/contracts/settings";
 import { isElectron } from "../env";
 import { APP_STAGE_LABEL, APP_VERSION } from "../branding";
 import { isLinuxPlatform, isMacPlatform, newCommandId, newProjectId } from "../lib/utils";
@@ -90,18 +89,20 @@ import {
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { formatWorktreePathForDisplay, getOrphanedWorktreePathForThread } from "../worktreeCleanup";
 import { isNonEmpty as isNonEmptyString } from "effect/String";
+import { resolveServerHttpOrigin } from "../lib/serverHttpOrigin";
 import {
+  getFallbackThreadIdAfterDelete,
   getVisibleThreadsForProject,
   resolveProjectStatusIndicator,
   resolveSidebarNewThreadEnvMode,
   resolveThreadRowClassName,
   resolveThreadStatusPill,
-  shouldOpenMultiSelectThreadMenu,
   shouldClearThreadSelectionOnMouseDown,
   sortProjectsForSidebar,
   sortThreadsForSidebar,
 } from "./Sidebar.logic";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
+import { useSettings, useUpdateSettings } from "~/hooks/useSettings";
 import ForkThreadContextMenuButton from "./sidebar/ForkThreadContextMenuButton";
 
 const EMPTY_KEYBINDINGS: ResolvedKeybindingsConfig = [];
@@ -205,29 +206,7 @@ function T3Wordmark() {
   );
 }
 
-/**
- * Derives the server's HTTP origin (scheme + host + port) from the same
- * sources WsTransport uses, converting ws(s) to http(s).
- */
-function getServerHttpOrigin(): string {
-  const bridgeUrl = window.desktopBridge?.getWsUrl();
-  const envUrl = import.meta.env.VITE_WS_URL as string | undefined;
-  const wsUrl =
-    bridgeUrl && bridgeUrl.length > 0
-      ? bridgeUrl
-      : envUrl && envUrl.length > 0
-        ? envUrl
-        : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:${window.location.port}`;
-  // Parse to extract just the origin, dropping path/query (e.g. ?token=…)
-  const httpUrl = wsUrl.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
-  try {
-    return new URL(httpUrl).origin;
-  } catch {
-    return httpUrl;
-  }
-}
-
-const serverHttpOrigin = getServerHttpOrigin();
+const serverHttpOrigin = resolveServerHttpOrigin();
 
 function ProjectFavicon({ cwd }: { cwd: string }) {
   const src = `${serverHttpOrigin}/api/project-favicon?cwd=${encodeURIComponent(cwd)}`;
@@ -382,7 +361,8 @@ export default function Sidebar() {
   );
   const navigate = useNavigate();
   const isOnSettings = useLocation({ select: (loc) => loc.pathname === "/settings" });
-  const { settings: appSettings, updateSettings } = useAppSettings();
+  const appSettings = useSettings();
+  const { updateSettings } = useUpdateSettings();
   const { handleNewThread } = useHandleNewThread();
   const routeThreadId = useParams({
     strict: false,
@@ -541,7 +521,10 @@ export default function Sidebar() {
           projectId,
           title,
           workspaceRoot: cwd,
-          defaultModel: DEFAULT_MODEL_BY_PROVIDER.codex,
+          defaultModelSelection: {
+            provider: "codex",
+            model: DEFAULT_MODEL_BY_PROVIDER.codex,
+          },
           createdAt,
         });
         await handleNewThread(projectId, {
@@ -714,8 +697,12 @@ export default function Sidebar() {
 
       const allDeletedIds = deletedIds ?? new Set<ThreadId>();
       const shouldNavigateToFallback = routeThreadId === threadId;
-      const fallbackThreadId =
-        threads.find((entry) => entry.id !== threadId && !allDeletedIds.has(entry.id))?.id ?? null;
+      const fallbackThreadId = getFallbackThreadIdAfterDelete({
+        threads,
+        deletedThreadId: threadId,
+        deletedThreadIds: allDeletedIds,
+        sortOrder: appSettings.sidebarThreadSortOrder,
+      });
       await api.orchestration.dispatchCommand({
         type: "thread.delete",
         commandId: newCommandId(),
@@ -762,6 +749,7 @@ export default function Sidebar() {
       }
     },
     [
+      appSettings.sidebarThreadSortOrder,
       clearComposerDraftForThread,
       clearProjectDraftThreadById,
       clearTerminalState,
@@ -926,18 +914,6 @@ export default function Sidebar() {
       removeFromSelection,
       selectedThreadIds,
     ],
-  );
-
-  const handleThreadContextMenuButtonOpen = useCallback(
-    (threadId: ThreadId, position: { x: number; y: number }) => {
-      if (shouldOpenMultiSelectThreadMenu(selectedThreadIds, threadId)) {
-        void handleMultiSelectContextMenu(position);
-        return;
-      }
-
-      void handleThreadContextMenu(threadId, position);
-    },
-    [handleMultiSelectContextMenu, handleThreadContextMenu, selectedThreadIds],
   );
 
   const handleThreadClick = useCallback(
@@ -1163,7 +1139,7 @@ export default function Sidebar() {
             className={resolveThreadRowClassName({
               isActive,
               isSelected,
-            }).concat(" group/thread-row")}
+            })}
             onClick={(event) => {
               handleThreadClick(event, thread.id, orderedProjectThreadIds);
             }}
@@ -1181,7 +1157,7 @@ export default function Sidebar() {
             }}
             onContextMenu={(event) => {
               event.preventDefault();
-              if (shouldOpenMultiSelectThreadMenu(selectedThreadIds, thread.id)) {
+              if (selectedThreadIds.size > 0 && selectedThreadIds.has(thread.id)) {
                 void handleMultiSelectContextMenu({
                   x: event.clientX,
                   y: event.clientY,
@@ -1291,7 +1267,7 @@ export default function Sidebar() {
                 threadTitle={thread.title}
                 isHighlighted={isHighlighted}
                 onOpenFromAnchor={(position) => {
-                  handleThreadContextMenuButtonOpen(thread.id, position);
+                  void handleThreadContextMenu(thread.id, position);
                 }}
               />
             </div>
@@ -1306,10 +1282,10 @@ export default function Sidebar() {
           <SidebarMenuButton
             ref={isManualProjectSorting ? dragHandleProps?.setActivatorNodeRef : undefined}
             size="sm"
-            data-project-row
             className={`gap-2 px-2 py-1.5 text-left hover:bg-accent group-hover/project-header:bg-accent group-hover/project-header:text-sidebar-accent-foreground ${
               isManualProjectSorting ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
             }`}
+            data-project-row
             {...(isManualProjectSorting && dragHandleProps ? dragHandleProps.attributes : {})}
             {...(isManualProjectSorting && dragHandleProps ? dragHandleProps.listeners : {})}
             onPointerDownCapture={handleProjectTitlePointerDownCapture}
@@ -1359,11 +1335,11 @@ export default function Sidebar() {
                       type="button"
                       aria-label={`Create new thread in ${project.name}`}
                       data-testid="new-thread-button"
+                      data-project-action
                     />
                   }
                   showOnHover
                   className="top-1 right-1 size-5 rounded-md p-0 text-muted-foreground/70 hover:bg-secondary hover:text-foreground"
-                  data-project-action
                   onClick={(event) => {
                     event.preventDefault();
                     event.stopPropagation();
@@ -1627,10 +1603,7 @@ export default function Sidebar() {
               <span className="truncate text-sm font-medium tracking-tight text-muted-foreground">
                 Code
               </span>
-              <span
-                className="rounded-full bg-muted/50 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.18em] text-muted-foreground/60"
-                data-slot="fork-stage-badge"
-              >
+              <span className="rounded-full bg-muted/50 px-1.5 py-0.5 text-[8px] font-medium uppercase tracking-[0.18em] text-muted-foreground/60">
                 {APP_STAGE_LABEL}
               </span>
             </div>
@@ -1700,7 +1673,7 @@ export default function Sidebar() {
             </Alert>
           </SidebarGroup>
         ) : null}
-        <SidebarGroup className="px-2 py-2" data-projects-section>
+        <SidebarGroup className="px-2 py-2">
           <div className="mb-1 flex items-center justify-between px-2" data-projects-heading>
             <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
               Projects

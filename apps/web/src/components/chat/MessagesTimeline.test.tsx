@@ -2,8 +2,8 @@ import { MessageId } from "@t3tools/contracts";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
-function MockChatMarkdown(props: { markdown: string }) {
-  return <div data-mock-chat-markdown>{props.markdown}</div>;
+function MockChatMarkdown(props: { text: string }) {
+  return <div data-mock-chat-markdown>{props.text}</div>;
 }
 
 vi.mock("../ChatMarkdown", () => ({
@@ -92,7 +92,7 @@ describe("MessagesTimeline", () => {
         revertTurnCountByUserMessageId={new Map()}
         onRevertUserMessage={() => {}}
         isRevertingCheckpoint={false}
-        onImageExpand={() => {}}
+        onMediaExpand={() => {}}
         markdownCwd={undefined}
         resolvedTheme="light"
         timestampFormat="locale"
@@ -137,7 +137,7 @@ describe("MessagesTimeline", () => {
         revertTurnCountByUserMessageId={new Map()}
         onRevertUserMessage={() => {}}
         isRevertingCheckpoint={false}
-        onImageExpand={() => {}}
+        onMediaExpand={() => {}}
         markdownCwd={undefined}
         resolvedTheme="light"
         timestampFormat="locale"
@@ -183,7 +183,7 @@ describe("MessagesTimeline", () => {
         revertTurnCountByUserMessageId={new Map()}
         onRevertUserMessage={() => {}}
         isRevertingCheckpoint={false}
-        onImageExpand={() => {}}
+        onMediaExpand={() => {}}
         markdownCwd={undefined}
         resolvedTheme="light"
         timestampFormat="locale"

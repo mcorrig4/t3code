@@ -3,8 +3,8 @@ import {
   DEFAULT_MODEL_BY_PROVIDER,
   type ClaudeCodeEffort,
   type MessageId,
+  type ModelSelection,
   type ProjectScript,
-  type ModelSlug,
   type ProviderKind,
   type ProjectEntry,
   type ProjectId,
@@ -12,7 +12,7 @@ import {
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
   type ResolvedKeybindingsConfig,
-  type ServerProviderStatus,
+  type ServerProvider,
   type ThreadId,
   type TurnId,
   type EditorId,
@@ -21,12 +21,7 @@ import {
   ProviderInteractionMode,
   RuntimeMode,
 } from "@t3tools/contracts";
-import {
-  applyClaudePromptEffortPrefix,
-  getDefaultModel,
-  normalizeModelSlug,
-  resolveModelSlugForProvider,
-} from "@t3tools/shared/model";
+import { applyClaudePromptEffortPrefix, normalizeModelSlug } from "@t3tools/shared/model";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@tanstack/react-pacer";
@@ -86,6 +81,7 @@ import {
 import { basenameOfPath } from "../vscode-icons";
 import { useTheme } from "../hooks/useTheme";
 import { useTurnDiffSummaries } from "../hooks/useTurnDiffSummaries";
+import { openInPreferredEditor } from "../editorPreferences";
 import BranchToolbar from "./BranchToolbar";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import PlanSidebar from "./PlanSidebar";
@@ -107,7 +103,6 @@ import { Menu, MenuItem, MenuPopup, MenuTrigger } from "./ui/menu";
 import { cn, randomUUID } from "~/lib/utils";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import { toastManager } from "./ui/toast";
-import { logUserInputDebug, logUserInputDebugLazy } from "~/debug/userInputDebug";
 import { decodeProjectScriptKeybindingRule } from "~/lib/projectScriptKeybindings";
 import { type NewProjectScriptInput } from "./ProjectScriptsControl";
 import {
@@ -122,19 +117,19 @@ import { SidebarTrigger } from "./ui/sidebar";
 import { newCommandId, newMessageId, newThreadId } from "~/lib/utils";
 import { readNativeApi } from "~/nativeApi";
 import {
-  getCustomModelOptionsByProvider,
-  getCustomModelsByProvider,
-  getProviderStartOptions,
-  resolveAppModelSelection,
-  useAppSettings,
-} from "../appSettings";
-import { useForkSettings } from "../fork/settings";
+  getProviderModelCapabilities,
+  getProviderModels,
+  resolveSelectableProvider,
+} from "../providerModels";
+import { useSettings } from "../hooks/useSettings";
+import { resolveAppModelSelection } from "../modelSelection";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import {
   type ComposerImageAttachment,
   type DraftThreadEnvMode,
   type PersistedComposerImageAttachment,
   useComposerDraftStore,
+  useEffectiveComposerModelState,
   useComposerThreadDraft,
 } from "../composerDraftStore";
 import {
@@ -166,7 +161,7 @@ import {
   renderProviderTraitsMenuContent,
   renderProviderTraitsPicker,
 } from "./chat/composerProviderRegistry";
-import { ProviderHealthBanner } from "./chat/ProviderHealthBanner";
+import { ProviderStatusBanner } from "./chat/ProviderStatusBanner";
 import { ThreadErrorBanner } from "./chat/ThreadErrorBanner";
 import {
   buildExpiredTerminalContextToastCopy,
@@ -193,15 +188,18 @@ const EMPTY_ACTIVITIES: OrchestrationThreadActivity[] = [];
 const EMPTY_KEYBINDINGS: ResolvedKeybindingsConfig = [];
 const EMPTY_PROJECT_ENTRIES: ProjectEntry[] = [];
 const EMPTY_AVAILABLE_EDITORS: EditorId[] = [];
-const EMPTY_PROVIDER_STATUSES: ServerProviderStatus[] = [];
+const EMPTY_PROVIDERS: ServerProvider[] = [];
 const EMPTY_PENDING_USER_INPUT_ANSWERS: Record<string, PendingUserInputDraftAnswer> = {};
 
 function formatOutgoingPrompt(params: {
   provider: ProviderKind;
+  model: string | null;
+  models: ReadonlyArray<ServerProvider["models"][number]>;
   effort: string | null;
   text: string;
 }): string {
-  if (params.provider === "claudeAgent" && params.effort === "ultrathink") {
+  const caps = getProviderModelCapabilities(params.models, params.model, params.provider);
+  if (params.effort && caps.promptInjectedEffortLevels.includes(params.effort)) {
     return applyClaudePromptEffortPrefix(params.text, params.effort as ClaudeCodeEffort | null);
   }
   return params.text;
@@ -242,6 +240,12 @@ interface ChatViewProps {
   threadId: ThreadId;
 }
 
+interface PendingPullRequestSetupRequest {
+  threadId: ThreadId;
+  worktreePath: string;
+  scriptId: string;
+}
+
 export default function ChatView({ threadId }: ChatViewProps) {
   const threads = useStore((store) => store.threads);
   const projects = useStore((store) => store.projects);
@@ -249,9 +253,10 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const syncServerReadModel = useStore((store) => store.syncServerReadModel);
   const setStoreThreadError = useStore((store) => store.setError);
   const setStoreThreadBranch = useStore((store) => store.setThreadBranch);
-  const { settings } = useAppSettings();
-  const { settings: forkSettings } = useForkSettings();
-  const setStickyComposerModel = useComposerDraftStore((store) => store.setStickyModel);
+  const settings = useSettings();
+  const setStickyComposerModelSelection = useComposerDraftStore(
+    (store) => store.setStickyModelSelection,
+  );
   const timestampFormat = settings.timestampFormat;
   const navigate = useNavigate();
   const rawSearch = useSearch({
@@ -276,8 +281,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   );
   const nonPersistedComposerImageIds = composerDraft.nonPersistedImageIds;
   const setComposerDraftPrompt = useComposerDraftStore((store) => store.setPrompt);
-  const setComposerDraftProvider = useComposerDraftStore((store) => store.setProvider);
-  const setComposerDraftModel = useComposerDraftStore((store) => store.setModel);
+  const setComposerDraftModelSelection = useComposerDraftStore((store) => store.setModelSelection);
   const setComposerDraftRuntimeMode = useComposerDraftStore((store) => store.setRuntimeMode);
   const setComposerDraftInteractionMode = useComposerDraftStore(
     (store) => store.setInteractionMode,
@@ -319,7 +323,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const promptRef = useRef(prompt);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [isDragOverComposer, setIsDragOverComposer] = useState(false);
-  const [expandedImage, setExpandedImage] = useState<ExpandedImagePreview | null>(null);
+  const [expandedMedia, setExpandedMedia] = useState<ExpandedImagePreview | null>(null);
   const [optimisticUserMessages, setOptimisticUserMessages] = useState<ChatMessage[]>([]);
   const optimisticUserMessagesRef = useRef(optimisticUserMessages);
   optimisticUserMessagesRef.current = optimisticUserMessages;
@@ -350,11 +354,11 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const planSidebarOpenOnNextThreadRef = useRef(false);
   const [nowTick, setNowTick] = useState(() => Date.now());
   const [terminalFocusRequestId, setTerminalFocusRequestId] = useState(0);
-  const lastPendingUserInputDebugStateRef = useRef<string | null>(null);
-  const lastThreadErrorDebugValueRef = useRef<string | null>(null);
   const [composerHighlightedItemId, setComposerHighlightedItemId] = useState<string | null>(null);
   const [pullRequestDialogState, setPullRequestDialogState] =
     useState<PullRequestDialogState | null>(null);
+  const [pendingPullRequestSetupRequest, setPendingPullRequestSetupRequest] =
+    useState<PendingPullRequestSetupRequest | null>(null);
   const [attachmentPreviewHandoffByMessageId, setAttachmentPreviewHandoffByMessageId] = useState<
     Record<string, string[]>
   >({});
@@ -472,11 +476,14 @@ export default function ChatView({ threadId }: ChatViewProps) {
         ? buildLocalDraftThread(
             threadId,
             draftThread,
-            fallbackDraftProject?.model ?? DEFAULT_MODEL_BY_PROVIDER.codex,
+            fallbackDraftProject?.defaultModelSelection ?? {
+              provider: "codex",
+              model: DEFAULT_MODEL_BY_PROVIDER.codex,
+            },
             localDraftError,
           )
         : undefined,
-    [draftThread, fallbackDraftProject?.model, localDraftError, threadId],
+    [draftThread, fallbackDraftProject?.defaultModelSelection, localDraftError, threadId],
   );
   const activeThread = serverThread ?? localDraftThread;
   const runtimeMode =
@@ -529,14 +536,14 @@ export default function ChatView({ threadId }: ChatViewProps) {
             params: { threadId: storedDraftThread.threadId },
           });
         }
-        return;
+        return storedDraftThread.threadId;
       }
 
       const activeDraftThread = getDraftThread(threadId);
       if (!isServerThread && activeDraftThread?.projectId === activeProject.id) {
         setDraftThreadContext(threadId, input);
         setProjectDraftThreadId(activeProject.id, threadId, input);
-        return;
+        return threadId;
       }
 
       clearProjectDraftThreadId(activeProject.id);
@@ -551,6 +558,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         to: "/$threadId",
         params: { threadId: nextThreadId },
       });
+      return nextThreadId;
     },
     [
       activeProject,
@@ -567,13 +575,24 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
   const handlePreparedPullRequestThread = useCallback(
     async (input: { branch: string; worktreePath: string | null }) => {
-      await openOrReuseProjectDraftThread({
+      const targetThreadId = await openOrReuseProjectDraftThread({
         branch: input.branch,
         worktreePath: input.worktreePath,
         envMode: input.worktreePath ? "worktree" : "local",
       });
+      const setupScript =
+        input.worktreePath && activeProject ? setupProjectScript(activeProject.scripts) : null;
+      if (targetThreadId && input.worktreePath && setupScript) {
+        setPendingPullRequestSetupRequest({
+          threadId: targetThreadId,
+          worktreePath: input.worktreePath,
+          scriptId: setupScript.id,
+        });
+      } else {
+        setPendingPullRequestSetupRequest(null);
+      }
     },
-    [openOrReuseProjectDraftThread],
+    [activeProject, openOrReuseProjectDraftThread],
   );
 
   useEffect(() => {
@@ -595,7 +614,9 @@ export default function ChatView({ threadId }: ChatViewProps) {
   ]);
 
   const sessionProvider = activeThread?.session?.provider ?? null;
-  const selectedProviderByThreadId = composerDraft.provider;
+  const selectedProviderByThreadId = composerDraft.activeProvider ?? null;
+  const threadProvider =
+    activeThread?.modelSelection.provider ?? activeProject?.defaultModelSelection?.provider ?? null;
   const hasThreadStarted = Boolean(
     activeThread &&
     (activeThread.latestTurn !== null ||
@@ -603,77 +624,46 @@ export default function ChatView({ threadId }: ChatViewProps) {
       activeThread.session !== null),
   );
   const lockedProvider: ProviderKind | null = hasThreadStarted
-    ? (sessionProvider ?? selectedProviderByThreadId ?? null)
+    ? (sessionProvider ?? threadProvider ?? selectedProviderByThreadId ?? null)
     : null;
-  const selectedProvider: ProviderKind = lockedProvider ?? selectedProviderByThreadId ?? "codex";
-  const baseThreadModel = resolveModelSlugForProvider(
-    selectedProvider,
-    activeThread?.model ?? activeProject?.model ?? getDefaultModel(selectedProvider),
+  const serverConfigQuery = useQuery(serverConfigQueryOptions());
+  const providerStatuses = serverConfigQuery.data?.providers ?? EMPTY_PROVIDERS;
+  const unlockedSelectedProvider = resolveSelectableProvider(
+    providerStatuses,
+    selectedProviderByThreadId ?? threadProvider ?? "codex",
   );
-  const customModelsByProvider = useMemo(() => getCustomModelsByProvider(settings), [settings]);
-  const selectedModel = useMemo(() => {
-    const draftModel = composerDraft.model;
-    if (!draftModel) {
-      return baseThreadModel;
-    }
-    return resolveAppModelSelection(selectedProvider, customModelsByProvider, draftModel);
-  }, [baseThreadModel, composerDraft.model, customModelsByProvider, selectedProvider]);
-  const draftModelOptions = composerDraft.modelOptions;
+  const selectedProvider: ProviderKind = lockedProvider ?? unlockedSelectedProvider;
+  const { modelOptions: composerModelOptions, selectedModel } = useEffectiveComposerModelState({
+    threadId,
+    providers: providerStatuses,
+    selectedProvider,
+    threadModelSelection: activeThread?.modelSelection,
+    projectModelSelection: activeProject?.defaultModelSelection,
+    settings,
+  });
+  const selectedProviderModels = getProviderModels(providerStatuses, selectedProvider);
   const composerProviderState = useMemo(
     () =>
       getComposerProviderState({
         provider: selectedProvider,
         model: selectedModel,
+        models: selectedProviderModels,
         prompt,
-        modelOptions: draftModelOptions,
+        modelOptions: composerModelOptions,
       }),
-    [draftModelOptions, prompt, selectedModel, selectedProvider],
+    [composerModelOptions, prompt, selectedModel, selectedProvider, selectedProviderModels],
   );
   const selectedPromptEffort = composerProviderState.promptEffort;
   const selectedModelOptionsForDispatch = composerProviderState.modelOptionsForDispatch;
-  const providerOptionsForDispatch = useMemo(() => {
-    const providerStartOptions = getProviderStartOptions(settings);
-    if (!forkSettings.suppressCodexAppServerNotifications) {
-      return providerStartOptions;
-    }
-
-    const codexOptions = providerStartOptions?.codex;
-    return {
-      ...providerStartOptions,
-      codex: {
-        ...codexOptions,
-        configOverrides: ["notify=[]"],
-      },
-    };
-  }, [forkSettings.suppressCodexAppServerNotifications, settings]);
+  const selectedModelSelection = useMemo<ModelSelection>(
+    () => ({
+      provider: selectedProvider,
+      model: selectedModel,
+      ...(selectedModelOptionsForDispatch ? { options: selectedModelOptionsForDispatch } : {}),
+    }),
+    [selectedModel, selectedModelOptionsForDispatch, selectedProvider],
+  );
   const selectedModelForPicker = selectedModel;
-  const modelOptionsByProvider = useMemo(
-    () => getCustomModelOptionsByProvider(settings),
-    [settings],
-  );
-  const selectedModelForPickerWithCustomFallback = useMemo(() => {
-    const currentOptions = modelOptionsByProvider[selectedProvider];
-    return currentOptions.some((option) => option.slug === selectedModelForPicker)
-      ? selectedModelForPicker
-      : (normalizeModelSlug(selectedModelForPicker, selectedProvider) ?? selectedModelForPicker);
-  }, [modelOptionsByProvider, selectedModelForPicker, selectedProvider]);
-  const searchableModelOptions = useMemo(
-    () =>
-      AVAILABLE_PROVIDER_OPTIONS.filter(
-        (option) => lockedProvider === null || option.value === lockedProvider,
-      ).flatMap((option) =>
-        modelOptionsByProvider[option.value].map(({ slug, name }) => ({
-          provider: option.value,
-          providerLabel: option.label,
-          slug,
-          name,
-          searchSlug: slug.toLowerCase(),
-          searchName: name.toLowerCase(),
-          searchProvider: option.label.toLowerCase(),
-        })),
-      ),
-    [lockedProvider, modelOptionsByProvider],
-  );
   const phase = derivePhase(activeThread?.session ?? null);
   const isSendBusy = sendPhase !== "idle";
   const isPreparingWorktree = sendPhase === "preparing-worktree";
@@ -1036,7 +1026,39 @@ export default function ChatView({ threadId }: ChatViewProps) {
   );
   const effectivePathQuery = pathTriggerQuery.length > 0 ? debouncedPathQuery : "";
   const branchesQuery = useQuery(gitBranchesQueryOptions(gitCwd));
-  const serverConfigQuery = useQuery(serverConfigQueryOptions());
+  const keybindings = serverConfigQuery.data?.keybindings ?? EMPTY_KEYBINDINGS;
+  const availableEditors = serverConfigQuery.data?.availableEditors ?? EMPTY_AVAILABLE_EDITORS;
+  const modelOptionsByProvider = useMemo(
+    () => ({
+      codex: providerStatuses.find((provider) => provider.provider === "codex")?.models ?? [],
+      claudeAgent:
+        providerStatuses.find((provider) => provider.provider === "claudeAgent")?.models ?? [],
+    }),
+    [providerStatuses],
+  );
+  const selectedModelForPickerWithCustomFallback = useMemo(() => {
+    const currentOptions = modelOptionsByProvider[selectedProvider];
+    return currentOptions.some((option) => option.slug === selectedModelForPicker)
+      ? selectedModelForPicker
+      : (normalizeModelSlug(selectedModelForPicker, selectedProvider) ?? selectedModelForPicker);
+  }, [modelOptionsByProvider, selectedModelForPicker, selectedProvider]);
+  const searchableModelOptions = useMemo(
+    () =>
+      AVAILABLE_PROVIDER_OPTIONS.filter(
+        (option) => lockedProvider === null || option.value === lockedProvider,
+      ).flatMap((option) =>
+        modelOptionsByProvider[option.value].map(({ slug, name }) => ({
+          provider: option.value,
+          providerLabel: option.label,
+          slug,
+          name,
+          searchSlug: slug.toLowerCase(),
+          searchName: name.toLowerCase(),
+          searchProvider: option.label.toLowerCase(),
+        })),
+      ),
+    [lockedProvider, modelOptionsByProvider],
+  );
   const workspaceEntriesQuery = useQuery(
     projectSearchEntriesQueryOptions({
       cwd: gitCwd,
@@ -1124,9 +1146,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
     () => new Set(nonPersistedComposerImageIds),
     [nonPersistedComposerImageIds],
   );
-  const keybindings = serverConfigQuery.data?.keybindings ?? EMPTY_KEYBINDINGS;
-  const availableEditors = serverConfigQuery.data?.availableEditors ?? EMPTY_AVAILABLE_EDITORS;
-  const providerStatuses = serverConfigQuery.data?.providers ?? EMPTY_PROVIDER_STATUSES;
   const activeProviderStatus = useMemo(
     () => providerStatuses.find((status) => status.provider === selectedProvider) ?? null,
     [selectedProvider, providerStatuses],
@@ -1420,6 +1439,45 @@ export default function ChatView({ threadId }: ChatViewProps) {
       terminalState.terminalIds,
     ],
   );
+
+  useEffect(() => {
+    if (!pendingPullRequestSetupRequest || !activeProject || !activeThreadId || !activeThread) {
+      return;
+    }
+    if (pendingPullRequestSetupRequest.threadId !== activeThreadId) {
+      return;
+    }
+    if (activeThread.worktreePath !== pendingPullRequestSetupRequest.worktreePath) {
+      return;
+    }
+
+    const setupScript =
+      activeProject.scripts.find(
+        (script) => script.id === pendingPullRequestSetupRequest.scriptId,
+      ) ?? null;
+    setPendingPullRequestSetupRequest(null);
+    if (!setupScript) {
+      return;
+    }
+
+    void runProjectScript(setupScript, {
+      cwd: pendingPullRequestSetupRequest.worktreePath,
+      worktreePath: pendingPullRequestSetupRequest.worktreePath,
+      rememberAsLastInvoked: false,
+    }).catch((error) => {
+      toastManager.add({
+        type: "error",
+        title: "Failed to run setup script.",
+        description: error instanceof Error ? error.message : "An error occurred.",
+      });
+    });
+  }, [
+    activeProject,
+    activeThread,
+    activeThreadId,
+    pendingPullRequestSetupRequest,
+    runProjectScript,
+  ]);
   const persistProjectScripts = useCallback(
     async (input: {
       projectId: ProjectId;
@@ -1613,7 +1671,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
     async (input: {
       threadId: ThreadId;
       createdAt: string;
-      model?: string;
+      modelSelection?: ModelSelection;
       runtimeMode: RuntimeMode;
       interactionMode: ProviderInteractionMode;
     }) => {
@@ -1625,12 +1683,18 @@ export default function ChatView({ threadId }: ChatViewProps) {
         return;
       }
 
-      if (input.model !== undefined && input.model !== serverThread.model) {
+      if (
+        input.modelSelection !== undefined &&
+        (input.modelSelection.model !== serverThread.modelSelection.model ||
+          input.modelSelection.provider !== serverThread.modelSelection.provider ||
+          JSON.stringify(input.modelSelection.options ?? null) !==
+            JSON.stringify(serverThread.modelSelection.options ?? null))
+      ) {
         await api.orchestration.dispatchCommand({
           type: "thread.meta.update",
           commandId: newCommandId(),
           threadId: input.threadId,
-          model: input.model,
+          modelSelection: input.modelSelection,
         });
       }
 
@@ -1946,7 +2010,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
     setComposerTrigger(detectComposerTrigger(promptRef.current, promptRef.current.length));
     dragDepthRef.current = 0;
     setIsDragOverComposer(false);
-    setExpandedImage(null);
+    setExpandedMedia(null);
   }, [threadId]);
 
   useEffect(() => {
@@ -2016,15 +2080,15 @@ export default function ChatView({ threadId }: ChatViewProps) {
   ]);
 
   const closeExpandedImage = useCallback(() => {
-    setExpandedImage(null);
+    setExpandedMedia(null);
   }, []);
   const navigateExpandedImage = useCallback((direction: -1 | 1) => {
-    setExpandedImage((existing) => {
-      if (!existing || existing.images.length <= 1) {
+    setExpandedMedia((existing) => {
+      if (!existing || existing.items.length <= 1) {
         return existing;
       }
       const nextIndex =
-        (existing.index + direction + existing.images.length) % existing.images.length;
+        (existing.index + direction + existing.items.length) % existing.items.length;
       if (nextIndex === existing.index) {
         return existing;
       }
@@ -2033,7 +2097,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   }, []);
 
   useEffect(() => {
-    if (!expandedImage) {
+    if (!expandedMedia) {
       return;
     }
 
@@ -2044,7 +2108,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         closeExpandedImage();
         return;
       }
-      if (expandedImage.images.length <= 1) {
+      if (expandedMedia.items.length <= 1) {
         return;
       }
       if (event.key === "ArrowLeft") {
@@ -2061,7 +2125,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [closeExpandedImage, expandedImage, navigateExpandedImage]);
+  }, [closeExpandedImage, expandedMedia, navigateExpandedImage]);
 
   const activeWorktreePath = activeThread?.worktreePath;
   const envMode: DraftThreadEnvMode = activeWorktreePath
@@ -2460,6 +2524,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
     const messageCreatedAt = new Date().toISOString();
     const outgoingMessageText = formatOutgoingPrompt({
       provider: selectedProvider,
+      model: selectedModel,
+      models: selectedProviderModels,
       effort: selectedPromptEffort,
       text: messageTextForSend || IMAGE_ONLY_BOOTSTRAP_PROMPT,
     });
@@ -2561,8 +2627,14 @@ export default function ChatView({ threadId }: ChatViewProps) {
         }
       }
       const title = truncateTitle(titleSeed);
-      let threadCreateModel: ModelSlug =
-        selectedModel || (activeProject.model as ModelSlug) || DEFAULT_MODEL_BY_PROVIDER.codex;
+      const threadCreateModelSelection: ModelSelection = {
+        provider: selectedProvider,
+        model:
+          selectedModel ||
+          activeProject.defaultModelSelection?.model ||
+          DEFAULT_MODEL_BY_PROVIDER.codex,
+        ...(selectedModelSelection.options ? { options: selectedModelSelection.options } : {}),
+      };
 
       if (isLocalDraftThread) {
         await api.orchestration.dispatchCommand({
@@ -2571,7 +2643,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
           threadId: threadIdForSend,
           projectId: activeProject.id,
           title,
-          model: threadCreateModel,
+          modelSelection: threadCreateModelSelection,
           runtimeMode,
           interactionMode,
           branch: nextThreadBranch,
@@ -2620,7 +2692,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         await persistThreadSettingsForNextTurn({
           threadId: threadIdForSend,
           createdAt: messageCreatedAt,
-          ...(selectedModel ? { model: selectedModel } : {}),
+          ...(selectedModel ? { modelSelection: selectedModelSelection } : {}),
           runtimeMode,
           interactionMode,
         });
@@ -2628,12 +2700,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
       beginSendPhase("sending-turn");
       const turnAttachments = await turnAttachmentsPromise;
-      logCodexSessionOverrideBreadcrumb({
-        threadId: threadIdForSend,
-        runtimeMode,
-        interactionMode,
-        trigger: "send-message",
-      });
       await api.orchestration.dispatchCommand({
         type: "thread.turn.start",
         commandId: newCommandId(),
@@ -2644,13 +2710,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
           text: outgoingMessageText,
           attachments: turnAttachments,
         },
-        model: selectedModel || undefined,
-        ...(selectedModelOptionsForDispatch
-          ? { modelOptions: selectedModelOptionsForDispatch }
-          : {}),
-        ...(providerOptionsForDispatch ? { providerOptions: providerOptionsForDispatch } : {}),
-        provider: selectedProvider,
-        assistantDeliveryMode: settings.enableAssistantStreaming ? "streaming" : "buffered",
+        modelSelection: selectedModelSelection,
         runtimeMode,
         interactionMode,
         createdAt: messageCreatedAt,
@@ -2742,47 +2802,24 @@ export default function ChatView({ threadId }: ChatViewProps) {
       const api = readNativeApi();
       if (!api || !activeThreadId) return;
 
-      logUserInputDebugLazy(() => ({
-        level: "info",
-        stage: "dispatch-start",
-        message: "Dispatching thread.user-input.respond",
-        threadId: activeThreadId,
-        requestId,
-        detail: JSON.stringify(answers, null, 2),
-      }));
       setRespondingUserInputRequestIds((existing) =>
         existing.includes(requestId) ? existing : [...existing, requestId],
       );
-      try {
-        const result = await api.orchestration.dispatchCommand({
+      await api.orchestration
+        .dispatchCommand({
           type: "thread.user-input.respond",
           commandId: newCommandId(),
           threadId: activeThreadId,
           requestId,
           answers,
           createdAt: new Date().toISOString(),
+        })
+        .catch((err: unknown) => {
+          setStoreThreadError(
+            activeThreadId,
+            err instanceof Error ? err.message : "Failed to submit user input.",
+          );
         });
-        logUserInputDebugLazy(() => ({
-          level: "success",
-          stage: "dispatch-success",
-          message: "thread.user-input.respond accepted by orchestration",
-          threadId: activeThreadId,
-          requestId,
-          detail: JSON.stringify(result, null, 2),
-        }));
-      } catch (err: unknown) {
-        logUserInputDebug({
-          level: "error",
-          stage: "dispatch-error",
-          message: err instanceof Error ? err.message : "Failed to submit user input.",
-          threadId: activeThreadId,
-          requestId,
-        });
-        setStoreThreadError(
-          activeThreadId,
-          err instanceof Error ? err.message : "Failed to submit user input.",
-        );
-      }
       setRespondingUserInputRequestIds((existing) => existing.filter((id) => id !== requestId));
     },
     [activeThreadId, setStoreThreadError],
@@ -2806,14 +2843,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
       if (!activePendingUserInput) {
         return;
       }
-      logUserInputDebugLazy(() => ({
-        level: "info",
-        stage: "option-selected",
-        message: `Selected option "${optionLabel}"`,
-        threadId: activeThreadId,
-        requestId: activePendingUserInput.requestId,
-        detail: JSON.stringify({ questionId }, null, 2),
-      }));
       setPendingUserInputAnswersByRequestId((existing) => ({
         ...existing,
         [activePendingUserInput.requestId]: {
@@ -2828,7 +2857,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       setComposerCursor(0);
       setComposerTrigger(null);
     },
-    [activePendingUserInput, activeThreadId],
+    [activePendingUserInput],
   );
 
   const onChangeActivePendingUserInputCustomAnswer = useCallback(
@@ -2863,50 +2892,16 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
   const onAdvanceActivePendingUserInput = useCallback(() => {
     if (!activePendingUserInput || !activePendingProgress) {
-      logUserInputDebug({
-        level: "warning",
-        stage: "advance-click",
-        message: "Advance clicked without an active pending question",
-        threadId: activeThreadId,
-      });
       return;
     }
-    logUserInputDebugLazy(() => ({
-      level: "info",
-      stage: "advance-click",
-      message: activePendingProgress.isLastQuestion
-        ? "Submit answers clicked"
-        : "Next question clicked",
-      threadId: activeThreadId,
-      requestId: activePendingUserInput.requestId,
-      detail: JSON.stringify(
-        {
-          questionIndex: activePendingProgress.questionIndex,
-          isLastQuestion: activePendingProgress.isLastQuestion,
-          canAdvance: activePendingProgress.canAdvance,
-          hasResolvedAnswers: activePendingResolvedAnswers !== null,
-        },
-        null,
-        2,
-      ),
-    }));
     if (activePendingProgress.isLastQuestion) {
       if (activePendingResolvedAnswers) {
         void onRespondToUserInput(activePendingUserInput.requestId, activePendingResolvedAnswers);
-      } else {
-        logUserInputDebug({
-          level: "warning",
-          stage: "submit-blocked",
-          message: "Submit was clicked but answers were not fully resolved",
-          threadId: activeThreadId,
-          requestId: activePendingUserInput.requestId,
-        });
       }
       return;
     }
     setActivePendingUserInputQuestionIndex(activePendingProgress.questionIndex + 1);
   }, [
-    activeThreadId,
     activePendingProgress,
     activePendingResolvedAnswers,
     activePendingUserInput,
@@ -2914,119 +2909,12 @@ export default function ChatView({ threadId }: ChatViewProps) {
     setActivePendingUserInputQuestionIndex,
   ]);
 
-  useEffect(() => {
-    if (!activeThreadId) {
-      lastPendingUserInputDebugStateRef.current = null;
-      return;
-    }
-    logUserInputDebugLazy(() => {
-      const nextState = JSON.stringify({
-        pendingCount: pendingUserInputs.length,
-        activeRequestId: activePendingUserInput?.requestId ?? null,
-        questionIndex: activePendingQuestionIndex,
-        isResponding: activePendingIsResponding,
-        isLastQuestion: activePendingProgress?.isLastQuestion ?? null,
-        canAdvance: activePendingProgress?.canAdvance ?? null,
-        isComplete: activePendingProgress?.isComplete ?? null,
-        answeredQuestionCount: activePendingProgress?.answeredQuestionCount ?? null,
-        hasResolvedAnswers: activePendingResolvedAnswers !== null,
-      });
-      if (lastPendingUserInputDebugStateRef.current === nextState) {
-        return {
-          level: "info" as const,
-          stage: "pending-state",
-          message: "Pending user input state unchanged (dedup)",
-          threadId: activeThreadId,
-          requestId: activePendingUserInput?.requestId ?? null,
-          detail: "",
-        };
-      }
-      lastPendingUserInputDebugStateRef.current = nextState;
-      return {
-        level: "info" as const,
-        stage: "pending-state",
-        message: "Pending user input state changed",
-        threadId: activeThreadId,
-        requestId: activePendingUserInput?.requestId ?? null,
-        detail: nextState,
-      };
-    });
-  }, [
-    activePendingIsResponding,
-    activePendingProgress?.answeredQuestionCount,
-    activePendingProgress?.canAdvance,
-    activePendingProgress?.isComplete,
-    activePendingProgress?.isLastQuestion,
-    activePendingQuestionIndex,
-    activePendingResolvedAnswers,
-    activePendingUserInput?.requestId,
-    activeThreadId,
-    pendingUserInputs.length,
-  ]);
-
-  useEffect(() => {
-    const nextError = activeThread?.error ?? null;
-    if (lastThreadErrorDebugValueRef.current === nextError) {
-      return;
-    }
-    lastThreadErrorDebugValueRef.current = nextError;
-    if (!nextError) {
-      return;
-    }
-    logUserInputDebug({
-      level: "error",
-      stage: "thread-error",
-      message: nextError,
-      threadId: activeThread?.id ?? activeThreadId,
-      requestId: activePendingUserInput?.requestId ?? null,
-    });
-  }, [activePendingUserInput?.requestId, activeThread?.error, activeThread?.id, activeThreadId]);
-
   const onPreviousActivePendingUserInputQuestion = useCallback(() => {
     if (!activePendingProgress) {
       return;
     }
     setActivePendingUserInputQuestionIndex(Math.max(activePendingProgress.questionIndex - 1, 0));
   }, [activePendingProgress, setActivePendingUserInputQuestionIndex]);
-
-  const logCodexSessionOverrideBreadcrumb = useCallback(
-    (input: {
-      threadId: string;
-      runtimeMode: RuntimeMode;
-      interactionMode: ProviderInteractionMode;
-      trigger: "send-message" | "plan-follow-up" | "implement-plan-new-thread";
-    }) => {
-      if (selectedProvider !== "codex") {
-        return;
-      }
-
-      logUserInputDebugLazy(() => ({
-        level: forkSettings.suppressCodexAppServerNotifications ? "info" : "warning",
-        stage: "codex-session-overrides",
-        message: forkSettings.suppressCodexAppServerNotifications
-          ? "Dispatching Codex turn with native-notification suppression enabled"
-          : "Dispatching Codex turn without native-notification suppression",
-        threadId: input.threadId,
-        detail: JSON.stringify(
-          {
-            trigger: input.trigger,
-            provider: selectedProvider,
-            suppressCodexAppServerNotifications: forkSettings.suppressCodexAppServerNotifications,
-            runtimeMode: input.runtimeMode,
-            interactionMode: input.interactionMode,
-            providerOptions: providerOptionsForDispatch ?? null,
-          },
-          null,
-          2,
-        ),
-      }));
-    },
-    [
-      forkSettings.suppressCodexAppServerNotifications,
-      providerOptionsForDispatch,
-      selectedProvider,
-    ],
-  );
 
   const onSubmitPlanFollowUp = useCallback(
     async ({
@@ -3058,6 +2946,8 @@ export default function ChatView({ threadId }: ChatViewProps) {
       const messageCreatedAt = new Date().toISOString();
       const outgoingMessageText = formatOutgoingPrompt({
         provider: selectedProvider,
+        model: selectedModel,
+        models: selectedProviderModels,
         effort: selectedPromptEffort,
         text: trimmed,
       });
@@ -3082,7 +2972,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         await persistThreadSettingsForNextTurn({
           threadId: threadIdForSend,
           createdAt: messageCreatedAt,
-          ...(selectedModel ? { model: selectedModel } : {}),
+          modelSelection: selectedModelSelection,
           runtimeMode,
           interactionMode: nextInteractionMode,
         });
@@ -3091,12 +2981,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
         // while the same-thread implementation turn is starting.
         setComposerDraftInteractionMode(threadIdForSend, nextInteractionMode);
 
-        logCodexSessionOverrideBreadcrumb({
-          threadId: threadIdForSend,
-          runtimeMode,
-          interactionMode: nextInteractionMode,
-          trigger: "plan-follow-up",
-        });
         await api.orchestration.dispatchCommand({
           type: "thread.turn.start",
           commandId: newCommandId(),
@@ -3107,13 +2991,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
             text: outgoingMessageText,
             attachments: [],
           },
-          provider: selectedProvider,
-          model: selectedModel || undefined,
-          ...(selectedModelOptionsForDispatch
-            ? { modelOptions: selectedModelOptionsForDispatch }
-            : {}),
-          ...(providerOptionsForDispatch ? { providerOptions: providerOptionsForDispatch } : {}),
-          assistantDeliveryMode: settings.enableAssistantStreaming ? "streaming" : "buffered",
+          modelSelection: selectedModelSelection,
           runtimeMode,
           interactionMode: nextInteractionMode,
           ...(nextInteractionMode === "default" && activeProposedPlan
@@ -3154,18 +3032,16 @@ export default function ChatView({ threadId }: ChatViewProps) {
       isConnecting,
       isSendBusy,
       isServerThread,
-      logCodexSessionOverrideBreadcrumb,
       persistThreadSettingsForNextTurn,
       resetSendPhase,
       runtimeMode,
       selectedPromptEffort,
-      selectedModel,
-      selectedModelOptionsForDispatch,
-      providerOptionsForDispatch,
+      selectedModelSelection,
       selectedProvider,
+      selectedProviderModels,
       setComposerDraftInteractionMode,
       setThreadError,
-      settings.enableAssistantStreaming,
+      selectedModel,
     ],
   );
 
@@ -3190,15 +3066,13 @@ export default function ChatView({ threadId }: ChatViewProps) {
     const implementationPrompt = buildPlanImplementationPrompt(planMarkdown);
     const outgoingImplementationPrompt = formatOutgoingPrompt({
       provider: selectedProvider,
+      model: selectedModel,
+      models: selectedProviderModels,
       effort: selectedPromptEffort,
       text: implementationPrompt,
     });
     const nextThreadTitle = truncateTitle(buildPlanImplementationThreadTitle(planMarkdown));
-    const nextThreadModel: ModelSlug =
-      selectedModel ||
-      (activeThread.model as ModelSlug) ||
-      (activeProject.model as ModelSlug) ||
-      DEFAULT_MODEL_BY_PROVIDER.codex;
+    const nextThreadModelSelection: ModelSelection = selectedModelSelection;
 
     sendInFlightRef.current = true;
     beginSendPhase("sending-turn");
@@ -3214,7 +3088,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         threadId: nextThreadId,
         projectId: activeProject.id,
         title: nextThreadTitle,
-        model: nextThreadModel,
+        modelSelection: nextThreadModelSelection,
         runtimeMode,
         interactionMode: "default",
         branch: activeThread.branch,
@@ -3222,12 +3096,6 @@ export default function ChatView({ threadId }: ChatViewProps) {
         createdAt,
       })
       .then(() => {
-        logCodexSessionOverrideBreadcrumb({
-          threadId: nextThreadId,
-          runtimeMode,
-          interactionMode: "default",
-          trigger: "implement-plan-new-thread",
-        });
         return api.orchestration.dispatchCommand({
           type: "thread.turn.start",
           commandId: newCommandId(),
@@ -3238,13 +3106,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
             text: outgoingImplementationPrompt,
             attachments: [],
           },
-          provider: selectedProvider,
-          model: selectedModel || undefined,
-          ...(selectedModelOptionsForDispatch
-            ? { modelOptions: selectedModelOptionsForDispatch }
-            : {}),
-          ...(providerOptionsForDispatch ? { providerOptions: providerOptionsForDispatch } : {}),
-          assistantDeliveryMode: settings.enableAssistantStreaming ? "streaming" : "buffered",
+          modelSelection: selectedModelSelection,
           runtimeMode,
           interactionMode: "default",
           createdAt,
@@ -3290,40 +3152,47 @@ export default function ChatView({ threadId }: ChatViewProps) {
     isConnecting,
     isSendBusy,
     isServerThread,
-    logCodexSessionOverrideBreadcrumb,
     navigate,
     resetSendPhase,
     runtimeMode,
     selectedPromptEffort,
-    selectedModel,
-    selectedModelOptionsForDispatch,
-    providerOptionsForDispatch,
+    selectedModelSelection,
     selectedProvider,
-    settings.enableAssistantStreaming,
+    selectedProviderModels,
     syncServerReadModel,
+    selectedModel,
   ]);
 
   const onProviderModelSelect = useCallback(
-    (provider: ProviderKind, model: ModelSlug) => {
+    (provider: ProviderKind, model: string) => {
       if (!activeThread) return;
       if (lockedProvider !== null && provider !== lockedProvider) {
         scheduleComposerFocus();
         return;
       }
-      const resolvedModel = resolveAppModelSelection(provider, customModelsByProvider, model);
-      setComposerDraftProvider(activeThread.id, provider);
-      setComposerDraftModel(activeThread.id, resolvedModel);
-      setStickyComposerModel(resolvedModel);
+      const resolvedProvider = resolveSelectableProvider(providerStatuses, provider);
+      const resolvedModel = resolveAppModelSelection(
+        resolvedProvider,
+        settings,
+        providerStatuses,
+        model,
+      );
+      const nextModelSelection: ModelSelection = {
+        provider: resolvedProvider,
+        model: resolvedModel,
+      };
+      setComposerDraftModelSelection(activeThread.id, nextModelSelection);
+      setStickyComposerModelSelection(nextModelSelection);
       scheduleComposerFocus();
     },
     [
       activeThread,
       lockedProvider,
       scheduleComposerFocus,
-      setComposerDraftModel,
-      setComposerDraftProvider,
-      setStickyComposerModel,
-      customModelsByProvider,
+      setComposerDraftModelSelection,
+      setStickyComposerModelSelection,
+      providerStatuses,
+      settings,
     ],
   );
   const setPromptFromTraits = useCallback(
@@ -3346,12 +3215,18 @@ export default function ChatView({ threadId }: ChatViewProps) {
     provider: selectedProvider,
     threadId,
     model: selectedModel,
+    models: selectedProviderModels,
+    modelOptions: composerModelOptions?.[selectedProvider],
+    prompt,
     onPromptChange: setPromptFromTraits,
   });
   const providerTraitsPicker = renderProviderTraitsPicker({
     provider: selectedProvider,
     threadId,
     model: selectedModel,
+    models: selectedProviderModels,
+    modelOptions: composerModelOptions?.[selectedProvider],
+    prompt,
     onPromptChange: setPromptFromTraits,
   });
   const onEnvModeChange = useCallback(
@@ -3622,9 +3497,9 @@ export default function ChatView({ threadId }: ChatViewProps) {
     }));
   }, []);
   const onExpandTimelineImage = useCallback((preview: ExpandedImagePreview) => {
-    setExpandedImage(preview);
+    setExpandedMedia(preview);
   }, []);
-  const expandedImageItem = expandedImage ? expandedImage.images[expandedImage.index] : null;
+  const expandedMediaItem = expandedMedia ? expandedMedia.items[expandedMedia.index] : null;
   const onOpenTurnDiff = useCallback(
     (turnId: TurnId, filePath?: string) => {
       void navigate({
@@ -3713,7 +3588,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
       </header>
 
       {/* Error banner */}
-      <ProviderHealthBanner status={activeProviderStatus} />
+      <ProviderStatusBanner status={activeProviderStatus} />
       <ThreadErrorBanner
         error={activeThread.error}
         onDismiss={() => setThreadError(activeThread.id, null)}
@@ -3757,7 +3632,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                 revertTurnCountByUserMessageId={revertTurnCountByUserMessageId}
                 onRevertUserMessage={onRevertUserMessage}
                 isRevertingCheckpoint={isRevertingCheckpoint}
-                onImageExpand={onExpandTimelineImage}
+                onMediaExpand={onExpandTimelineImage}
                 markdownCwd={gitCwd ?? undefined}
                 resolvedTheme={resolvedTheme}
                 timestampFormat={timestampFormat}
@@ -3800,7 +3675,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
               >
                 <div
                   className={cn(
-                    "rounded-[20px] border bg-card transition-colors duration-200 focus-within:border-ring/45",
+                    "rounded-[20px] border bg-card transition-colors duration-200 has-focus-visible:border-ring/45",
                     isDragOverComposer ? "border-primary/70 bg-accent/30" : "border-border",
                     composerProviderState.composerSurfaceClassName,
                   )}
@@ -3871,7 +3746,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                                       image.id,
                                     );
                                     if (!preview) return;
-                                    setExpandedImage(preview);
+                                    setExpandedMedia(preview);
                                   }}
                                 >
                                   <img
@@ -3990,6 +3865,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                           provider={selectedProvider}
                           model={selectedModelForPickerWithCustomFallback}
                           lockedProvider={lockedProvider}
+                          providers={providerStatuses}
                           modelOptionsByProvider={modelOptionsByProvider}
                           {...(composerProviderState.modelPickerIconClassName
                             ? {
@@ -4217,7 +4093,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                           ) : (
                             <button
                               type="submit"
-                              className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/90 text-primary-foreground transition-all duration-150 hover:bg-primary hover:scale-105 disabled:opacity-30 disabled:hover:scale-100 sm:h-8 sm:w-8"
+                              className="flex h-9 w-9 enabled:cursor-pointer items-center justify-center rounded-full bg-primary/90 text-primary-foreground transition-all duration-150 hover:bg-primary hover:scale-105 disabled:pointer-events-none disabled:opacity-30 disabled:hover:scale-100 sm:h-8 sm:w-8"
                               disabled={
                                 isSendBusy || isConnecting || !composerSendState.hasSendableContent
                               }
@@ -4356,20 +4232,20 @@ export default function ChatView({ threadId }: ChatViewProps) {
         );
       })()}
 
-      {expandedImage && expandedImageItem && (
+      {expandedMedia && expandedMediaItem && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 [-webkit-app-region:no-drag]"
           role="dialog"
           aria-modal="true"
-          aria-label="Expanded image preview"
+          aria-label="Expanded media preview"
         >
           <button
             type="button"
             className="absolute inset-0 z-0 cursor-zoom-out"
-            aria-label="Close image preview"
+            aria-label="Close media preview"
             onClick={closeExpandedImage}
           />
-          {expandedImage.images.length > 1 && (
+          {expandedMedia.items.length > 1 && (
             <Button
               type="button"
               size="icon"
@@ -4384,30 +4260,63 @@ export default function ChatView({ threadId }: ChatViewProps) {
             </Button>
           )}
           <div className="relative isolate z-10 max-h-[92vh] max-w-[92vw]">
-            <Button
-              type="button"
-              size="icon-xs"
-              variant="ghost"
-              className="absolute right-2 top-2"
-              onClick={closeExpandedImage}
-              aria-label="Close image preview"
-            >
-              <XIcon />
-            </Button>
-            <img
-              src={expandedImageItem.src}
-              alt={expandedImageItem.name}
-              className="max-h-[86vh] max-w-[92vw] select-none rounded-lg border border-border/70 bg-background object-contain shadow-2xl"
-              draggable={false}
-            />
+            <div className="absolute left-2 right-2 top-2 z-20 flex items-center justify-between gap-2">
+              {expandedMediaItem.sourcePath ? (
+                (() => {
+                  const sourcePath = expandedMediaItem.sourcePath;
+                  return (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="bg-background/80 hover:bg-background/90"
+                      onClick={() => {
+                        const api = readNativeApi();
+                        if (!api) return;
+                        void openInPreferredEditor(api, sourcePath);
+                      }}
+                    >
+                      Open in editor
+                    </Button>
+                  );
+                })()
+              ) : (
+                <span />
+              )}
+              <Button
+                type="button"
+                size="icon-xs"
+                variant="ghost"
+                className="bg-background/80 hover:bg-background/90"
+                onClick={closeExpandedImage}
+                aria-label="Close media preview"
+              >
+                <XIcon />
+              </Button>
+            </div>
+            {expandedMediaItem.kind === "image" ? (
+              <img
+                src={expandedMediaItem.src}
+                alt={expandedMediaItem.name}
+                className="max-h-[86vh] max-w-[92vw] select-none rounded-lg border border-border/70 bg-background object-contain shadow-2xl"
+                draggable={false}
+              />
+            ) : (
+              <video
+                src={expandedMediaItem.src}
+                controls
+                preload="metadata"
+                className="max-h-[86vh] max-w-[92vw] rounded-lg border border-border/70 bg-background shadow-2xl"
+              />
+            )}
             <p className="mt-2 max-w-[92vw] truncate text-center text-xs text-muted-foreground/80">
-              {expandedImageItem.name}
-              {expandedImage.images.length > 1
-                ? ` (${expandedImage.index + 1}/${expandedImage.images.length})`
+              {expandedMediaItem.name}
+              {expandedMedia.items.length > 1
+                ? ` (${expandedMedia.index + 1}/${expandedMedia.items.length})`
                 : ""}
             </p>
           </div>
-          {expandedImage.images.length > 1 && (
+          {expandedMedia.items.length > 1 && (
             <Button
               type="button"
               size="icon"

@@ -208,6 +208,42 @@ describe("classifyCodexStderrLine", () => {
   });
 });
 
+describe("process stderr events", () => {
+  it("emits classified stderr lines as notifications", () => {
+    const manager = new CodexAppServerManager();
+    const emitEvent = vi
+      .spyOn(manager as unknown as { emitEvent: (...args: unknown[]) => void }, "emitEvent")
+      .mockImplementation(() => {});
+
+    (
+      manager as unknown as {
+        emitNotificationEvent: (
+          context: { session: { threadId: ThreadId } },
+          method: string,
+          message: string,
+        ) => void;
+      }
+    ).emitNotificationEvent(
+      {
+        session: {
+          threadId: asThreadId("thread-1"),
+        },
+      },
+      "process/stderr",
+      "fatal: permission denied",
+    );
+
+    expect(emitEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "notification",
+        method: "process/stderr",
+        threadId: "thread-1",
+        message: "fatal: permission denied",
+      }),
+    );
+  });
+});
+
 describe("normalizeCodexModelSlug", () => {
   it("maps 5.3 aliases to gpt-5.3-codex", () => {
     expect(normalizeCodexModelSlug("5.3")).toBe("gpt-5.3-codex");
@@ -359,6 +395,7 @@ describe("startSession", () => {
         manager.startSession({
           threadId: asThreadId("thread-1"),
           provider: "codex",
+          binaryPath: "codex",
           runtimeMode: "full-access",
         }),
       ).rejects.toThrow("cwd missing");
@@ -407,6 +444,7 @@ describe("startSession", () => {
         manager.startSession({
           threadId: asThreadId("thread-1"),
           provider: "codex",
+          binaryPath: "codex",
           runtimeMode: "full-access",
         }),
       ).rejects.toThrow(
@@ -965,12 +1003,8 @@ describe.skipIf(!process.env.CODEX_BINARY_PATH)("startSession live Codex resume"
         provider: "codex",
         cwd: workspaceDir,
         runtimeMode: "full-access",
-        providerOptions: {
-          codex: {
-            ...(process.env.CODEX_BINARY_PATH ? { binaryPath: process.env.CODEX_BINARY_PATH } : {}),
-            ...(process.env.CODEX_HOME_PATH ? { homePath: process.env.CODEX_HOME_PATH } : {}),
-          },
-        },
+        binaryPath: process.env.CODEX_BINARY_PATH!,
+        ...(process.env.CODEX_HOME_PATH ? { homePath: process.env.CODEX_HOME_PATH } : {}),
       });
 
       const firstTurn = await manager.sendTurn({
@@ -1000,12 +1034,8 @@ describe.skipIf(!process.env.CODEX_BINARY_PATH)("startSession live Codex resume"
         cwd: workspaceDir,
         runtimeMode: "approval-required",
         resumeCursor: firstSession.resumeCursor,
-        providerOptions: {
-          codex: {
-            ...(process.env.CODEX_BINARY_PATH ? { binaryPath: process.env.CODEX_BINARY_PATH } : {}),
-            ...(process.env.CODEX_HOME_PATH ? { homePath: process.env.CODEX_HOME_PATH } : {}),
-          },
-        },
+        binaryPath: process.env.CODEX_BINARY_PATH!,
+        ...(process.env.CODEX_HOME_PATH ? { homePath: process.env.CODEX_HOME_PATH } : {}),
       });
 
       expect(resumedSession.threadId).toBe(originalThreadId);

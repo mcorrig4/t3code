@@ -13,18 +13,20 @@ import { makeServerProviderLayer, makeServerRuntimeServicesLayer } from "./serve
 
 import {
   DEFAULT_TERMINAL_ID,
+  DEFAULT_SERVER_SETTINGS,
   EDITORS,
   EventId,
   ORCHESTRATION_WS_CHANNELS,
   ORCHESTRATION_WS_METHODS,
   ProviderItemId,
+  type ServerSettings,
   ThreadId,
   TurnId,
   WS_CHANNELS,
   WS_METHODS,
   type WebSocketResponse,
   type ProviderRuntimeEvent,
-  type ServerProviderStatus,
+  type ServerProvider,
   type KeybindingsConfig,
   type ResolvedKeybindingsConfig,
   type WsPushChannel,
@@ -45,7 +47,7 @@ import { TerminalManager, type TerminalManagerShape } from "./terminal/Services/
 import { makeSqlitePersistenceLive, SqlitePersistenceMemory } from "./persistence/Layers/Sqlite";
 import { SqlClient, SqlError } from "effect/unstable/sql";
 import { ProviderService, type ProviderServiceShape } from "./provider/Services/ProviderService";
-import { ProviderHealth, type ProviderHealthShape } from "./provider/Services/ProviderHealth";
+import { ProviderRegistry, type ProviderRegistryShape } from "./provider/Services/ProviderRegistry";
 import { Open, type OpenShape } from "./open";
 import { GitManager, type GitManagerShape } from "./git/Services/GitManager.ts";
 import type { GitCoreShape } from "./git/Services/GitCore.ts";
@@ -53,10 +55,7 @@ import { GitCore } from "./git/Services/GitCore.ts";
 import { GitCommandError, GitManagerError } from "./git/Errors.ts";
 import { MigrationError } from "@effect/sql-sqlite-bun/SqliteMigrator";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService.ts";
-import {
-  WebPushNotifications,
-  type WebPushNotificationsShape,
-} from "./notifications/Services/WebPushNotifications.ts";
+import { ServerSettingsService } from "./serverSettings.ts";
 
 const asEventId = (value: string): EventId => EventId.makeUnsafe(value);
 const asProviderItemId = (value: string): ProviderItemId => ProviderItemId.makeUnsafe(value);
@@ -68,30 +67,26 @@ const defaultOpenService: OpenShape = {
   openInEditor: () => Effect.void,
 };
 
-const defaultProviderStatuses: ReadonlyArray<ServerProviderStatus> = [
+const defaultProviderStatuses: ReadonlyArray<ServerProvider> = [
   {
     provider: "codex",
+    enabled: true,
+    installed: true,
+    version: "0.116.0",
     status: "ready",
-    available: true,
     authStatus: "authenticated",
     checkedAt: "2026-01-01T00:00:00.000Z",
+    models: [],
   },
 ];
 
-const defaultProviderHealthService: ProviderHealthShape = {
-  getStatuses: Effect.succeed(defaultProviderStatuses),
+const defaultProviderRegistryService: ProviderRegistryShape = {
+  getProviders: Effect.succeed(defaultProviderStatuses),
+  refresh: () => Effect.succeed(defaultProviderStatuses),
+  streamChanges: Stream.empty,
 };
 
-const defaultWebPushNotifications: WebPushNotificationsShape = {
-  config: {
-    enabled: false,
-    publicKey: null,
-    subject: null,
-  },
-  subscribe: () => Effect.void,
-  unsubscribe: () => Effect.void,
-  notifyEvent: () => Effect.void,
-};
+const defaultServerSettings = DEFAULT_SERVER_SETTINGS;
 
 class MockTerminalManager implements TerminalManagerShape {
   private readonly sessions = new Map<string, TerminalSessionSnapshot>();
@@ -416,25 +411,16 @@ async function rewriteKeybindingsAndWaitForPush(
 async function requestPath(
   port: number,
   requestPath: string,
-  headers?: Http.OutgoingHttpHeaders,
-  options?: { method?: string; body?: string },
+  options?: { headers?: Record<string, string> },
 ): Promise<{ statusCode: number; body: string; headers: Http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
-    const requestHeaders: Http.OutgoingHttpHeaders = {
-      Connection: "close",
-      ...headers,
-    };
-    if (options?.body) {
-      requestHeaders["Content-Length"] = Buffer.byteLength(options.body);
-    }
-
     const req = Http.request(
       {
         hostname: "127.0.0.1",
-        headers: requestHeaders,
         port,
         path: requestPath,
-        method: options?.method ?? "GET",
+        method: "GET",
+        headers: options?.headers,
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -450,52 +436,6 @@ async function requestPath(
         });
       },
     );
-    req.once("error", reject);
-    if (options?.body) {
-      req.write(options.body);
-    }
-    req.end();
-  });
-}
-
-async function requestWebSocketUpgrade(
-  port: number,
-  requestPath: string,
-  headers?: Http.OutgoingHttpHeaders,
-): Promise<{ statusCode: number; body: string; headers: Http.IncomingHttpHeaders }> {
-  return new Promise((resolve, reject) => {
-    const req = Http.request({
-      hostname: "127.0.0.1",
-      port,
-      path: requestPath,
-      headers: {
-        Connection: "Upgrade",
-        Upgrade: "websocket",
-        "Sec-WebSocket-Version": "13",
-        "Sec-WebSocket-Key": Buffer.from("test-websocket-key").toString("base64"),
-        ...headers,
-      },
-    });
-
-    req.once("upgrade", (res, socket) => {
-      socket.destroy();
-      reject(
-        new Error(`Expected WebSocket upgrade rejection but received ${res.statusCode ?? 101}`),
-      );
-    });
-    req.once("response", (res) => {
-      const chunks: Buffer[] = [];
-      res.on("data", (chunk) => {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-      });
-      res.on("end", () => {
-        resolve({
-          statusCode: res.statusCode ?? 0,
-          body: Buffer.concat(chunks).toString("utf8"),
-          headers: res.headers,
-        });
-      });
-    });
     req.once("error", reject);
     req.end();
   });
@@ -560,12 +500,12 @@ describe("WebSocket Server", () => {
       baseDir?: string;
       staticDir?: string;
       providerLayer?: Layer.Layer<ProviderService, never>;
-      providerHealth?: ProviderHealthShape;
+      providerRegistry?: ProviderRegistryShape;
       open?: OpenShape;
       gitManager?: GitManagerShape;
       gitCore?: Pick<GitCoreShape, "listBranches" | "initRepo" | "pullCurrentBranch">;
       terminalManager?: TerminalManagerShape;
-      webPushNotifications?: WebPushNotificationsShape;
+      serverSettings?: Partial<ServerSettings>;
     } = {},
   ): Promise<Http.Server> {
     if (serverScope) {
@@ -578,9 +518,9 @@ describe("WebSocket Server", () => {
     const scope = await Effect.runPromise(Scope.make("sequential"));
     const persistenceLayer = options.persistenceLayer ?? SqlitePersistenceMemory;
     const providerLayer = options.providerLayer ?? makeServerProviderLayer();
-    const providerHealthLayer = Layer.succeed(
-      ProviderHealth,
-      options.providerHealth ?? defaultProviderHealthService,
+    const providerRegistryLayer = Layer.succeed(
+      ProviderRegistry,
+      options.providerRegistry ?? defaultProviderRegistryService,
     );
     const openLayer = Layer.succeed(Open, options.open ?? defaultOpenService);
     const serverConfigLayer = Layer.succeed(ServerConfig, {
@@ -609,10 +549,6 @@ describe("WebSocket Server", () => {
       options.terminalManager
         ? Layer.succeed(TerminalManager, options.terminalManager)
         : Layer.empty,
-      Layer.succeed(
-        WebPushNotifications,
-        options.webPushNotifications ?? defaultWebPushNotifications,
-      ),
     );
 
     const runtimeLayer = Layer.merge(
@@ -624,8 +560,9 @@ describe("WebSocket Server", () => {
     );
     const dependenciesLayer = Layer.empty.pipe(
       Layer.provideMerge(runtimeLayer),
-      Layer.provideMerge(providerHealthLayer),
+      Layer.provideMerge(providerRegistryLayer),
       Layer.provideMerge(openLayer),
+      Layer.provideMerge(ServerSettingsService.layerTest(options.serverSettings)),
       Layer.provideMerge(serverConfigLayer),
       Layer.provideMerge(AnalyticsService.layerTest),
       Layer.provideMerge(NodeServices.layer),
@@ -727,6 +664,108 @@ describe("WebSocket Server", () => {
     expect(bytes).toEqual(Buffer.from("hello-encoded-attachment"));
   });
 
+  it("supports byte-range requests for persisted attachments", async () => {
+    const baseDir = makeTempDir("t3code-state-attachments-range-");
+    const { attachmentsDir } = deriveServerPathsSync(baseDir, undefined);
+    const attachmentPath = path.join(attachmentsDir, "thread-a", "message-a", "0.webm");
+    fs.mkdirSync(path.dirname(attachmentPath), { recursive: true });
+    fs.writeFileSync(attachmentPath, Buffer.from("hello-attachment"));
+
+    server = await createTestServer({ cwd: "/test/project", baseDir });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    const response = await requestPath(port, "/attachments/thread-a/message-a/0.webm", {
+      headers: { Range: "bytes=0-4" },
+    });
+    expect(response.statusCode).toBe(206);
+    expect(response.headers["accept-ranges"]).toBe("bytes");
+    expect(response.headers["content-range"]).toBe("bytes 0-4/16");
+    expect(response.body).toBe("hello");
+  });
+
+  it("serves workspace media rooted in the project workspace", async () => {
+    const workspaceRoot = makeTempDir("t3code-workspace-media-");
+    const mediaPath = path.join(workspaceRoot, "test-results", "foo.png");
+    fs.mkdirSync(path.dirname(mediaPath), { recursive: true });
+    fs.writeFileSync(mediaPath, Buffer.from("workspace-media"));
+
+    server = await createTestServer({ cwd: workspaceRoot });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/workspace-media?cwd=${encodeURIComponent(
+        workspaceRoot,
+      )}&path=${encodeURIComponent("test-results/foo.png")}`,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("image/png");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const bytes = Buffer.from(await response.arrayBuffer());
+    expect(bytes).toEqual(Buffer.from("workspace-media"));
+  });
+
+  it("rejects workspace media outside the project root", async () => {
+    const workspaceRoot = makeTempDir("t3code-workspace-media-invalid-");
+    server = await createTestServer({ cwd: workspaceRoot });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/workspace-media?cwd=${encodeURIComponent(
+        workspaceRoot,
+      )}&path=${encodeURIComponent("../outside.png")}`,
+    );
+    expect(response.status).toBe(400);
+    expect(await response.text()).toBe("Invalid workspace media path");
+  });
+
+  it("returns 404 for missing workspace media files", async () => {
+    const workspaceRoot = makeTempDir("t3code-workspace-media-missing-");
+    server = await createTestServer({ cwd: workspaceRoot });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/workspace-media?cwd=${encodeURIComponent(
+        workspaceRoot,
+      )}&path=${encodeURIComponent("test-results/missing.webm")}`,
+    );
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("Not Found");
+  });
+
+  it("supports byte-range requests for workspace media", async () => {
+    const workspaceRoot = makeTempDir("t3code-workspace-media-range-");
+    const mediaPath = path.join(workspaceRoot, "test-results", "foo.webm");
+    fs.mkdirSync(path.dirname(mediaPath), { recursive: true });
+    fs.writeFileSync(mediaPath, Buffer.from("workspace-video"));
+
+    server = await createTestServer({ cwd: workspaceRoot });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    const response = await requestPath(
+      port,
+      `/api/workspace-media?cwd=${encodeURIComponent(workspaceRoot)}&path=${encodeURIComponent(
+        "test-results/foo.webm",
+      )}`,
+      {
+        headers: { Range: "bytes=0-8" },
+      },
+    );
+    expect(response.statusCode).toBe(206);
+    expect(response.headers["accept-ranges"]).toBe("bytes");
+    expect(response.headers["content-range"]).toBe("bytes 0-8/15");
+    expect(response.body).toBe("workspace");
+  });
+
   it("serves static index for root path", async () => {
     const baseDir = makeTempDir("t3code-state-static-root-");
     const staticDir = makeTempDir("t3code-static-root-");
@@ -740,81 +779,6 @@ describe("WebSocket Server", () => {
     const response = await fetch(`http://127.0.0.1:${port}/`);
     expect(response.status).toBe(200);
     expect(await response.text()).toContain("static-root");
-  });
-
-  it("serves a host-aware manifest for the dev host", async () => {
-    const baseDir = makeTempDir("t3code-state-static-manifest-dev-");
-    const staticDir = makeTempDir("t3code-static-manifest-dev-");
-    fs.writeFileSync(path.join(staticDir, "index.html"), "<h1>static-root</h1>", "utf8");
-
-    server = await createTestServer({ cwd: "/test/project", baseDir, staticDir });
-    const addr = server.address();
-    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
-    expect(port).toBeGreaterThan(0);
-
-    const response = await requestPath(port, "/manifest.webmanifest", {
-      Host: "t3-dev.claude.do",
-    });
-    expect(response.statusCode).toBe(200);
-    expect(response.headers["content-type"]).toContain("application/manifest+json");
-    expect(JSON.parse(response.body)).toEqual(
-      expect.objectContaining({
-        theme_color: "#170308",
-        background_color: "#170308",
-        icons: expect.arrayContaining([
-          expect.objectContaining({ src: "/apple-touch-icon.png", sizes: "180x180" }),
-        ]),
-      }),
-    );
-  });
-
-  it("serves host-aware favicon aliases for the dev host", async () => {
-    const baseDir = makeTempDir("t3code-state-static-favicon-dev-");
-    const staticDir = makeTempDir("t3code-static-favicon-dev-");
-    fs.writeFileSync(path.join(staticDir, "index.html"), "<h1>static-root</h1>", "utf8");
-    fs.writeFileSync(path.join(staticDir, "favicon.ico"), "prod-icon", "utf8");
-    fs.writeFileSync(path.join(staticDir, "favicon-dev.ico"), "dev-icon", "utf8");
-
-    server = await createTestServer({ cwd: "/test/project", baseDir, staticDir });
-    const addr = server.address();
-    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
-    expect(port).toBeGreaterThan(0);
-
-    const response = await requestPath(port, "/favicon.ico", {
-      Host: "t3-dev.claude.do",
-    });
-    expect(response.statusCode).toBe(200);
-    expect(response.body).toBe("dev-icon");
-  });
-
-  it("brands the initial html shell for the dev host before js runs", async () => {
-    const baseDir = makeTempDir("t3code-state-static-html-dev-");
-    const staticDir = makeTempDir("t3code-static-html-dev-");
-    fs.writeFileSync(
-      path.join(staticDir, "index.html"),
-      [
-        "<!doctype html>",
-        '<html lang="en">',
-        "  <head>",
-        '    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#07101f" />',
-        "    <!-- app-branding-vars -->",
-        "  </head>",
-        "  <body></body>",
-        "</html>",
-      ].join("\n"),
-      "utf8",
-    );
-
-    server = await createTestServer({ cwd: "/test/project", baseDir, staticDir });
-    const addr = server.address();
-    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
-    expect(port).toBeGreaterThan(0);
-
-    const response = await requestPath(port, "/", { Host: "t3-dev.claude.do" });
-    expect(response.statusCode).toBe(200);
-    expect(response.body).toContain('<html lang="en" data-host-variant="t3-dev">');
-    expect(response.body).toContain("--t3-boot-mid:#170308;");
-    expect(response.body).toContain('content="#170308"');
   });
 
   it("rejects static path traversal attempts", async () => {
@@ -859,13 +823,19 @@ describe("WebSocket Server", () => {
         id: string;
         workspaceRoot: string;
         title: string;
-        defaultModel: string | null;
+        defaultModelSelection: {
+          provider: string;
+          model: string;
+        } | null;
       }>;
       threads: Array<{
         id: string;
         projectId: string;
         title: string;
-        model: string;
+        modelSelection: {
+          provider: string;
+          model: string;
+        };
         branch: string | null;
         worktreePath: string | null;
       }>;
@@ -881,7 +851,10 @@ describe("WebSocket Server", () => {
           id: bootstrapProjectId,
           workspaceRoot: "/test/bootstrap-workspace",
           title: "bootstrap-workspace",
-          defaultModel: "gpt-5-codex",
+          defaultModelSelection: {
+            provider: "codex",
+            model: "gpt-5-codex",
+          },
         }),
       ]),
     );
@@ -891,7 +864,10 @@ describe("WebSocket Server", () => {
           id: bootstrapThreadId,
           projectId: bootstrapProjectId,
           title: "New thread",
-          model: "gpt-5-codex",
+          modelSelection: {
+            provider: "codex",
+            model: "gpt-5-codex",
+          },
           branch: null,
           worktreePath: null,
         }),
@@ -1002,6 +978,7 @@ describe("WebSocket Server", () => {
       issues: [],
       providers: defaultProviderStatuses,
       availableEditors: expect.any(Array),
+      settings: defaultServerSettings,
     });
     expectAvailableEditors((response.result as { availableEditors: unknown }).availableEditors);
   });
@@ -1027,6 +1004,7 @@ describe("WebSocket Server", () => {
       issues: [],
       providers: defaultProviderStatuses,
       availableEditors: expect.any(Array),
+      settings: defaultServerSettings,
     });
     expectAvailableEditors((response.result as { availableEditors: unknown }).availableEditors);
 
@@ -1063,6 +1041,7 @@ describe("WebSocket Server", () => {
       ],
       providers: defaultProviderStatuses,
       availableEditors: expect.any(Array),
+      settings: defaultServerSettings,
     });
     expectAvailableEditors((response.result as { availableEditors: unknown }).availableEditors);
     expect(fs.readFileSync(keybindingsPath, "utf8")).toBe("{ not-json");
@@ -1096,7 +1075,7 @@ describe("WebSocket Server", () => {
       keybindingsConfigPath: string;
       keybindings: ResolvedKeybindingsConfig;
       issues: Array<{ kind: string; index?: number; message: string }>;
-      providers: ReadonlyArray<ServerProviderStatus>;
+      providers: ReadonlyArray<ServerProvider>;
       availableEditors: unknown;
     };
     expect(result.cwd).toBe("/my/workspace");
@@ -1144,7 +1123,6 @@ describe("WebSocket Server", () => {
     );
     expect(malformedPush.data).toEqual({
       issues: [{ kind: "keybindings.malformed-config", message: expect.any(String) }],
-      providers: defaultProviderStatuses,
     });
 
     const successPush = await rewriteKeybindingsAndWaitForPush(
@@ -1153,7 +1131,7 @@ describe("WebSocket Server", () => {
       "[]",
       (push) => Array.isArray(push.data.issues) && push.data.issues.length === 0,
     );
-    expect(successPush.data).toEqual({ issues: [], providers: defaultProviderStatuses });
+    expect(successPush.data).toEqual({ issues: [] });
   });
 
   it("routes shell.openInEditor through the injected open service", async () => {
@@ -1213,6 +1191,7 @@ describe("WebSocket Server", () => {
       issues: [],
       providers: defaultProviderStatuses,
       availableEditors: expect.any(Array),
+      settings: defaultServerSettings,
     });
     expectAvailableEditors((response.result as { availableEditors: unknown }).availableEditors);
   });
@@ -1261,6 +1240,7 @@ describe("WebSocket Server", () => {
       issues: [],
       providers: defaultProviderStatuses,
       availableEditors: expect.any(Array),
+      settings: defaultServerSettings,
     });
     expectAvailableEditors(
       (configResponse.result as { availableEditors: unknown }).availableEditors,
@@ -1348,7 +1328,10 @@ describe("WebSocket Server", () => {
       projectId: "project-diff",
       title: "Diff Project",
       workspaceRoot,
-      defaultModel: "gpt-5-codex",
+      defaultModelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
       createdAt,
     });
     expect(createProjectResponse.error).toBeUndefined();
@@ -1358,7 +1341,10 @@ describe("WebSocket Server", () => {
       threadId: "thread-diff",
       projectId: "project-diff",
       title: "Diff Thread",
-      model: "gpt-5-codex",
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
       runtimeMode: "full-access",
       interactionMode: "default",
       branch: null,
@@ -1411,6 +1397,7 @@ describe("WebSocket Server", () => {
     server = await createTestServer({
       cwd: "/test",
       providerLayer,
+      serverSettings: { enableAssistantStreaming: true },
     });
     const addr = server.address();
     const port = typeof addr === "object" && addr !== null ? addr.port : 0;
@@ -1426,7 +1413,10 @@ describe("WebSocket Server", () => {
       projectId: "project-1",
       title: "WS Project",
       workspaceRoot,
-      defaultModel: "gpt-5-codex",
+      defaultModelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
       createdAt,
     });
     expect(createProjectResponse.error).toBeUndefined();
@@ -1436,7 +1426,10 @@ describe("WebSocket Server", () => {
       threadId: "thread-1",
       projectId: "project-1",
       title: "Thread 1",
-      model: "gpt-5-codex",
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5-codex",
+      },
       runtimeMode: "full-access",
       interactionMode: "default",
       branch: null,
@@ -1455,7 +1448,6 @@ describe("WebSocket Server", () => {
         text: "hello",
         attachments: [],
       },
-      assistantDeliveryMode: "streaming",
       runtimeMode: "approval-required",
       interactionMode: "default",
       createdAt,
@@ -1970,6 +1962,10 @@ describe("WebSocket Server", () => {
       actionId: "client-action-1",
       cwd: "/test",
       action: "commit_push",
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5.4-mini",
+      },
     });
     expect(response.result).toBeUndefined();
     expect(response.error?.message).toContain("detached HEAD");
@@ -2033,6 +2029,10 @@ describe("WebSocket Server", () => {
       actionId: "client-action-2",
       cwd: "/test",
       action: "commit",
+      modelSelection: {
+        provider: "codex",
+        model: "gpt-5.4-mini",
+      },
     });
     const progressPush = await waitForPush(initiatingWs, WS_CHANNELS.gitActionProgress);
 
@@ -2066,258 +2066,5 @@ describe("WebSocket Server", () => {
 
     const [authorizedWs] = await connectAndAwaitWelcome(port, "secret-token");
     connections.push(authorizedWs);
-  });
-
-  it("fails closed when websocket auth is configured but empty", async () => {
-    server = await createTestServer({ cwd: "/test", authToken: "" });
-    const addr = server.address();
-    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
-
-    const response = await requestWebSocketUpgrade(port, "/?token=anything");
-    expect(response.statusCode).toBe(500);
-    expect(response.body).toContain("Server auth misconfigured");
-  });
-
-  it("rejects authenticated web-push config access without a bearer token", async () => {
-    server = await createTestServer({
-      cwd: "/test",
-      authToken: "secret-token",
-      webPushNotifications: {
-        ...defaultWebPushNotifications,
-        config: {
-          enabled: true,
-          publicKey: "public-key",
-          subject: "mailto:test@example.com",
-        },
-      },
-    });
-    const addr = server.address();
-    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
-
-    const unauthorized = await requestPath(port, "/api/web-push/config");
-    expect(unauthorized.statusCode).toBe(401);
-
-    const authorized = await requestPath(port, "/api/web-push/config", {
-      Authorization: "Bearer secret-token",
-    });
-    expect(authorized.statusCode).toBe(200);
-    expect(JSON.parse(authorized.body)).toEqual(
-      expect.objectContaining({
-        enabled: true,
-        publicKey: "public-key",
-      }),
-    );
-  });
-
-  it("keeps web-push config open when server auth is disabled", async () => {
-    server = await createTestServer({
-      cwd: "/test",
-      webPushNotifications: {
-        ...defaultWebPushNotifications,
-        config: {
-          enabled: true,
-          publicKey: "public-key",
-          subject: "mailto:test@example.com",
-        },
-      },
-    });
-    const addr = server.address();
-    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
-
-    const response = await requestPath(port, "/api/web-push/config");
-    expect(response.statusCode).toBe(200);
-  });
-
-  it("rejects web-push subscription writes without auth when auth is enabled", async () => {
-    const subscribe = vi.fn(() => Effect.void);
-    server = await createTestServer({
-      cwd: "/test",
-      authToken: "secret-token",
-      webPushNotifications: {
-        ...defaultWebPushNotifications,
-        config: {
-          enabled: true,
-          publicKey: "public-key",
-          subject: "mailto:test@example.com",
-        },
-        subscribe,
-      },
-    });
-    const addr = server.address();
-    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
-    const origin = `http://127.0.0.1:${port}`;
-    const body = JSON.stringify({
-      subscription: {
-        endpoint: "https://web.push.apple.com/example-endpoint",
-        keys: {
-          p256dh:
-            "BCwE8uCo5bRFcPrI5di1ZTf0oYUCM-f6xBcu2tKe5IZl2koYmOxEalrKP8eudqmMOdoWzw_ncgVajpJySDcbm8c",
-          auth: "K9i0eYvPxWbww_gHxSQU_A",
-        },
-      },
-    });
-
-    const unauthorized = await requestPath(
-      port,
-      "/api/web-push/subscription",
-      {
-        "Content-Type": "application/json",
-        Origin: origin,
-      },
-      { method: "PUT", body },
-    );
-    expect(unauthorized.statusCode).toBe(401);
-    expect(subscribe).not.toHaveBeenCalled();
-
-    const authorized = await requestPath(
-      port,
-      "/api/web-push/subscription",
-      {
-        "Content-Type": "application/json",
-        Origin: origin,
-        Authorization: "Bearer secret-token",
-      },
-      { method: "PUT", body },
-    );
-    expect(authorized.statusCode).toBe(204);
-    expect(subscribe).toHaveBeenCalledOnce();
-  });
-
-  it("returns 413 for oversized web-push subscription bodies", async () => {
-    server = await createTestServer({
-      cwd: "/test",
-      authToken: "secret-token",
-      webPushNotifications: defaultWebPushNotifications,
-    });
-    const addr = server.address();
-    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
-    const origin = `http://127.0.0.1:${port}`;
-    const oversizedBody = JSON.stringify({
-      payload: "x".repeat(70_000),
-    });
-
-    const response = await requestPath(
-      port,
-      "/api/web-push/subscription",
-      {
-        "Content-Type": "application/json",
-        Origin: origin,
-        Authorization: "Bearer secret-token",
-      },
-      { method: "PUT", body: oversizedBody },
-    );
-
-    expect(response.statusCode).toBe(413);
-    expect(response.body).toBe("Request body too large");
-  });
-
-  it("allows authenticated web-push unsubscribe writes when auth is enabled", async () => {
-    const unsubscribe = vi.fn(() => Effect.void);
-    server = await createTestServer({
-      cwd: "/test",
-      authToken: "secret-token",
-      webPushNotifications: {
-        ...defaultWebPushNotifications,
-        config: {
-          enabled: true,
-          publicKey: "public-key",
-          subject: "mailto:test@example.com",
-        },
-        unsubscribe,
-      },
-    });
-    const addr = server.address();
-    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
-    const origin = `http://127.0.0.1:${port}`;
-    const body = JSON.stringify({
-      subscription: {
-        endpoint: "https://web.push.apple.com/example-endpoint",
-      },
-    });
-
-    const unauthorized = await requestPath(
-      port,
-      "/api/web-push/subscription",
-      {
-        "Content-Type": "application/json",
-        Origin: origin,
-      },
-      { method: "DELETE", body },
-    );
-    expect(unauthorized.statusCode).toBe(401);
-    expect(unsubscribe).not.toHaveBeenCalled();
-
-    const authorized = await requestPath(
-      port,
-      "/api/web-push/subscription",
-      {
-        "Content-Type": "application/json",
-        Origin: origin,
-        Authorization: "Bearer secret-token",
-      },
-      { method: "DELETE", body },
-    );
-    expect(authorized.statusCode).toBe(204);
-    expect(unsubscribe).toHaveBeenCalledOnce();
-  });
-
-  it("keeps web-push subscription writes open when server auth is disabled", async () => {
-    const subscribe = vi.fn(() => Effect.void);
-    const unsubscribe = vi.fn(() => Effect.void);
-    server = await createTestServer({
-      cwd: "/test",
-      webPushNotifications: {
-        ...defaultWebPushNotifications,
-        config: {
-          enabled: true,
-          publicKey: "public-key",
-          subject: "mailto:test@example.com",
-        },
-        subscribe,
-        unsubscribe,
-      },
-    });
-    const addr = server.address();
-    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
-    const origin = `http://127.0.0.1:${port}`;
-    const subscribeBody = JSON.stringify({
-      subscription: {
-        endpoint: "https://web.push.apple.com/example-endpoint",
-        keys: {
-          p256dh:
-            "BCwE8uCo5bRFcPrI5di1ZTf0oYUCM-f6xBcu2tKe5IZl2koYmOxEalrKP8eudqmMOdoWzw_ncgVajpJySDcbm8c",
-          auth: "K9i0eYvPxWbww_gHxSQU_A",
-        },
-      },
-    });
-    const unsubscribeBody = JSON.stringify({
-      subscription: {
-        endpoint: "https://web.push.apple.com/example-endpoint",
-      },
-    });
-
-    const subscribeResponse = await requestPath(
-      port,
-      "/api/web-push/subscription",
-      {
-        "Content-Type": "application/json",
-        Origin: origin,
-      },
-      { method: "PUT", body: subscribeBody },
-    );
-    expect(subscribeResponse.statusCode).toBe(204);
-    expect(subscribe).toHaveBeenCalledOnce();
-
-    const unsubscribeResponse = await requestPath(
-      port,
-      "/api/web-push/subscription",
-      {
-        "Content-Type": "application/json",
-        Origin: origin,
-      },
-      { method: "DELETE", body: unsubscribeBody },
-    );
-    expect(unsubscribeResponse.statusCode).toBe(204);
-    expect(unsubscribe).toHaveBeenCalledOnce();
   });
 });

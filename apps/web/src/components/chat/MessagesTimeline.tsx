@@ -36,7 +36,12 @@ import {
 import { Button } from "../ui/button";
 import { clamp } from "effect/Number";
 import { estimateTimelineMessageHeight } from "../timelineHeight";
-import { buildExpandedImagePreview, ExpandedImagePreview } from "./ExpandedImagePreview";
+import {
+  buildExpandedImagePreview,
+  buildSingleExpandedMediaPreview,
+  ExpandedImagePreview,
+} from "./ExpandedImagePreview";
+import { type PreviewableChatMediaLink } from "../../chatMediaLinks";
 import { ProposedPlanCard } from "./ProposedPlanCard";
 import { ChangedFilesTree } from "./ChangedFilesTree";
 import { DiffStatLabel, hasNonZeroStat } from "./DiffStatLabel";
@@ -49,7 +54,7 @@ import {
   type ParsedTerminalContextEntry,
 } from "~/lib/terminalContext";
 import { cn } from "~/lib/utils";
-import { type TimestampFormat } from "../../appSettings";
+import { type TimestampFormat } from "@t3tools/contracts/settings";
 import { formatTimestamp } from "../../timestampFormat";
 import {
   buildInlineTerminalContextText,
@@ -77,7 +82,7 @@ interface MessagesTimelineProps {
   revertTurnCountByUserMessageId: Map<MessageId, number>;
   onRevertUserMessage: (messageId: MessageId) => void;
   isRevertingCheckpoint: boolean;
-  onImageExpand: (preview: ExpandedImagePreview) => void;
+  onMediaExpand: (preview: ExpandedImagePreview) => void;
   markdownCwd: string | undefined;
   resolvedTheme: "light" | "dark";
   timestampFormat: TimestampFormat;
@@ -101,7 +106,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   revertTurnCountByUserMessageId,
   onRevertUserMessage,
   isRevertingCheckpoint,
-  onImageExpand,
+  onMediaExpand,
   markdownCwd,
   resolvedTheme,
   timestampFormat,
@@ -379,7 +384,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                               onClick={() => {
                                 const preview = buildExpandedImagePreview(userImages, image.id);
                                 if (!preview) return;
-                                onImageExpand(preview);
+                                onMediaExpand(preview);
                               }}
                             >
                               <img
@@ -456,6 +461,17 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                 <ChatMarkdown
                   text={messageText}
                   cwd={markdownCwd}
+                  onOpenMediaLink={(mediaLink: PreviewableChatMediaLink) => {
+                    onMediaExpand(
+                      buildSingleExpandedMediaPreview({
+                        kind: mediaLink.kind,
+                        src: mediaLink.url,
+                        name: mediaLink.name,
+                        ...(mediaLink.sourcePath ? { sourcePath: mediaLink.sourcePath } : {}),
+                      }),
+                    );
+                  }}
+                  {...(markdownCwd ? { previewWorkspaceRoot: markdownCwd } : {})}
                   isStreaming={Boolean(row.message.streaming)}
                 />
                 {(() => {
