@@ -4,9 +4,21 @@ import babel from "@rolldown/plugin-babel";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { defineConfig } from "vite";
 import pkg from "./package.json" with { type: "json" };
+import { t3ForkBrandingVitePlugin } from "./src/fork/brandingVitePlugin";
+import { renderT3LoaderMarkup } from "./src/components/loading/renderT3LoaderMarkup";
 
 const port = Number(process.env.PORT ?? 5733);
 const sourcemapEnv = process.env.T3CODE_WEB_SOURCEMAP?.trim().toLowerCase();
+const allowedHosts = Array.from(
+  new Set([
+    "t3-dev.claude.do",
+    "localhost",
+    "127.0.0.1",
+    ...(process.env.T3CODE_ALLOWED_HOSTS?.split(",")
+      .map((host) => host.trim())
+      .filter(Boolean) ?? []),
+  ]),
+);
 
 const buildSourcemap =
   sourcemapEnv === "0" || sourcemapEnv === "false"
@@ -14,9 +26,42 @@ const buildSourcemap =
     : sourcemapEnv === "hidden"
       ? "hidden"
       : true;
+const webPushProxyTarget = (() => {
+  try {
+    const parsed = new URL(process.env.T3CODE_WEB_API_URL?.trim() || "http://127.0.0.1:3774");
+    return parsed.origin;
+  } catch {
+    const wsUrl = process.env.VITE_WS_URL?.trim();
+    if (wsUrl) {
+      try {
+        const parsed = new URL(wsUrl);
+        parsed.protocol = parsed.protocol === "wss:" ? "https:" : "http:";
+        parsed.pathname = "";
+        parsed.search = "";
+        parsed.hash = "";
+        return parsed.origin;
+      } catch {
+        return undefined;
+      }
+    }
+
+    return undefined;
+  }
+})();
+
+function t3BootShellPlugin() {
+  return {
+    name: "t3-boot-shell",
+    transformIndexHtml(html: string) {
+      return html.replace("<!-- app-boot-shell -->", renderT3LoaderMarkup());
+    },
+  };
+}
 
 export default defineConfig({
   plugins: [
+    t3ForkBrandingVitePlugin(),
+    t3BootShellPlugin(),
     tanstackRouter(),
     react(),
     babel({
@@ -43,6 +88,18 @@ export default defineConfig({
   server: {
     port,
     strictPort: true,
+    allowedHosts,
+    ...(webPushProxyTarget
+      ? {
+          proxy: {
+            "/api/web-push": {
+              target: webPushProxyTarget,
+              changeOrigin: true,
+              xfwd: true,
+            },
+          },
+        }
+      : {}),
     hmr: {
       // Explicit config so Vite's HMR WebSocket connects reliably
       // inside Electron's BrowserWindow. Vite 8 uses console.debug for

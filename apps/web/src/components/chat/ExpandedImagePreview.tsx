@@ -1,10 +1,14 @@
-export interface ExpandedImageItem {
+export type ExpandedMediaKind = "image" | "video";
+
+export interface ExpandedMediaItem {
+  kind: ExpandedMediaKind;
   src: string;
   name: string;
+  sourcePath?: string;
 }
 
 export interface ExpandedImagePreview {
-  images: ExpandedImageItem[];
+  items: ExpandedMediaItem[];
   index: number;
 }
 
@@ -23,10 +27,18 @@ export function buildExpandedImagePreview(
     return null;
   }
   return {
-    images: previewableImages.map((image) => ({
+    items: previewableImages.map((image) => ({
+      kind: "image",
       src: image.src,
       name: image.name,
     })),
     index: selectedIndex,
+  };
+}
+
+export function buildSingleExpandedMediaPreview(item: ExpandedMediaItem): ExpandedImagePreview {
+  return {
+    items: [item],
+    index: 0,
   };
 }

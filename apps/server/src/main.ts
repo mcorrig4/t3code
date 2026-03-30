@@ -45,6 +45,9 @@ const BootstrapEnvelopeSchema = Schema.Struct({
   devUrl: Schema.optional(Schema.URLFromString),
   noBrowser: Schema.optional(Schema.Boolean),
   authToken: Schema.optional(Schema.String),
+  webPushVapidPublicKey: Schema.optional(Schema.String),
+  webPushVapidPrivateKey: Schema.optional(Schema.String),
+  webPushSubject: Schema.optional(Schema.String),
   autoBootstrapProjectFromCwd: Schema.optional(Schema.Boolean),
   logWebSocketEvents: Schema.optional(Schema.Boolean),
 });
@@ -120,6 +123,18 @@ const CliEnvConfig = Config.all({
     Config.map(Option.getOrUndefined),
   ),
   authToken: Config.string("T3CODE_AUTH_TOKEN").pipe(
+    Config.option,
+    Config.map(Option.getOrUndefined),
+  ),
+  webPushVapidPublicKey: Config.string("T3CODE_WEB_PUSH_VAPID_PUBLIC_KEY").pipe(
+    Config.option,
+    Config.map(Option.getOrUndefined),
+  ),
+  webPushVapidPrivateKey: Config.string("T3CODE_WEB_PUSH_VAPID_PRIVATE_KEY").pipe(
+    Config.option,
+    Config.map(Option.getOrUndefined),
+  ),
+  webPushSubject: Config.string("T3CODE_WEB_PUSH_SUBJECT").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
@@ -237,6 +252,24 @@ const ServerConfigLive = (input: CliInput) =>
           Option.fromUndefinedOr(bootstrap.authToken),
         ),
       );
+      const webPushVapidPublicKey = resolveOptionPrecedence(
+        Option.fromUndefinedOr(env.webPushVapidPublicKey),
+        Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+          Option.fromUndefinedOr(bootstrap.webPushVapidPublicKey),
+        ),
+      );
+      const webPushVapidPrivateKey = resolveOptionPrecedence(
+        Option.fromUndefinedOr(env.webPushVapidPrivateKey),
+        Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+          Option.fromUndefinedOr(bootstrap.webPushVapidPrivateKey),
+        ),
+      );
+      const webPushSubject = resolveOptionPrecedence(
+        Option.fromUndefinedOr(env.webPushSubject),
+        Option.flatMap(bootstrapEnvelope, (bootstrap) =>
+          Option.fromUndefinedOr(bootstrap.webPushSubject),
+        ),
+      );
       const autoBootstrapProjectFromCwd = resolveBooleanFlag(
         input.autoBootstrapProjectFromCwd,
         Option.getOrElse(
@@ -282,6 +315,9 @@ const ServerConfigLive = (input: CliInput) =>
         devUrl,
         noBrowser,
         authToken: Option.getOrUndefined(authToken),
+        webPushVapidPublicKey: Option.getOrUndefined(webPushVapidPublicKey),
+        webPushVapidPrivateKey: Option.getOrUndefined(webPushVapidPrivateKey),
+        webPushSubject: Option.getOrUndefined(webPushSubject),
         autoBootstrapProjectFromCwd,
         logWebSocketEvents,
       } satisfies ServerConfigShape;

@@ -89,6 +89,7 @@ import {
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { formatWorktreePathForDisplay, getOrphanedWorktreePathForThread } from "../worktreeCleanup";
 import { isNonEmpty as isNonEmptyString } from "effect/String";
+import { resolveServerHttpOrigin } from "../lib/serverHttpOrigin";
 import {
   getFallbackThreadIdAfterDelete,
   getVisibleThreadsForProject,
@@ -102,6 +103,7 @@ import {
 } from "./Sidebar.logic";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { useSettings, useUpdateSettings } from "~/hooks/useSettings";
+import ForkThreadContextMenuButton from "./sidebar/ForkThreadContextMenuButton";
 
 const EMPTY_KEYBINDINGS: ResolvedKeybindingsConfig = [];
 const THREAD_PREVIEW_LIMIT = 6;
@@ -204,29 +206,7 @@ function T3Wordmark() {
   );
 }
 
-/**
- * Derives the server's HTTP origin (scheme + host + port) from the same
- * sources WsTransport uses, converting ws(s) to http(s).
- */
-function getServerHttpOrigin(): string {
-  const bridgeUrl = window.desktopBridge?.getWsUrl();
-  const envUrl = import.meta.env.VITE_WS_URL as string | undefined;
-  const wsUrl =
-    bridgeUrl && bridgeUrl.length > 0
-      ? bridgeUrl
-      : envUrl && envUrl.length > 0
-        ? envUrl
-        : `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.hostname}:${window.location.port}`;
-  // Parse to extract just the origin, dropping path/query (e.g. ?token=…)
-  const httpUrl = wsUrl.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
-  try {
-    return new URL(httpUrl).origin;
-  } catch {
-    return httpUrl;
-  }
-}
-
-const serverHttpOrigin = getServerHttpOrigin();
+const serverHttpOrigin = resolveServerHttpOrigin();
 
 function ProjectFavicon({ cwd }: { cwd: string }) {
   const src = `${serverHttpOrigin}/api/project-favicon?cwd=${encodeURIComponent(cwd)}`;
@@ -1227,6 +1207,7 @@ export default function Sidebar() {
               )}
               {renamingThreadId === thread.id ? (
                 <input
+                  data-slot="thread-rename-input"
                   ref={(el) => {
                     if (el && renamingInputRef.current !== el) {
                       renamingInputRef.current = el;
@@ -1282,6 +1263,13 @@ export default function Sidebar() {
               >
                 {formatRelativeTime(thread.updatedAt ?? thread.createdAt)}
               </span>
+              <ForkThreadContextMenuButton
+                threadTitle={thread.title}
+                isHighlighted={isHighlighted}
+                onOpenFromAnchor={(position) => {
+                  void handleThreadContextMenu(thread.id, position);
+                }}
+              />
             </div>
           </SidebarMenuSubButton>
         </SidebarMenuSubItem>
@@ -1289,14 +1277,15 @@ export default function Sidebar() {
     };
 
     return (
-      <Collapsible className="group/collapsible" open={shouldShowThreadPanel}>
-        <div className="group/project-header relative">
+      <Collapsible className="group/collapsible" data-project-group open={shouldShowThreadPanel}>
+        <div className="group/project-header relative" data-project-header>
           <SidebarMenuButton
             ref={isManualProjectSorting ? dragHandleProps?.setActivatorNodeRef : undefined}
             size="sm"
             className={`gap-2 px-2 py-1.5 text-left hover:bg-accent group-hover/project-header:bg-accent group-hover/project-header:text-sidebar-accent-foreground ${
               isManualProjectSorting ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"
             }`}
+            data-project-row
             {...(isManualProjectSorting && dragHandleProps ? dragHandleProps.attributes : {})}
             {...(isManualProjectSorting && dragHandleProps ? dragHandleProps.listeners : {})}
             onPointerDownCapture={handleProjectTitlePointerDownCapture}
@@ -1346,6 +1335,7 @@ export default function Sidebar() {
                       type="button"
                       aria-label={`Create new thread in ${project.name}`}
                       data-testid="new-thread-button"
+                      data-project-action
                     />
                   }
                   showOnHover
@@ -1374,6 +1364,7 @@ export default function Sidebar() {
           <SidebarMenuSub
             ref={attachThreadListAutoAnimateRef}
             className="mx-1 my-0 w-full translate-x-0 gap-0.5 px-1.5 py-0"
+            data-project-threads
           >
             {renderedThreads.map((thread) => renderThreadRow(thread))}
 
@@ -1683,7 +1674,7 @@ export default function Sidebar() {
           </SidebarGroup>
         ) : null}
         <SidebarGroup className="px-2 py-2">
-          <div className="mb-1 flex items-center justify-between px-2">
+          <div className="mb-1 flex items-center justify-between px-2" data-projects-heading>
             <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/60">
               Projects
             </span>
@@ -1797,7 +1788,7 @@ export default function Sidebar() {
               onDragEnd={handleProjectDragEnd}
               onDragCancel={handleProjectDragCancel}
             >
-              <SidebarMenu>
+              <SidebarMenu data-projects-list>
                 <SortableContext
                   items={sortedProjects.map((project) => project.id)}
                   strategy={verticalListSortingStrategy}
@@ -1811,7 +1802,7 @@ export default function Sidebar() {
               </SidebarMenu>
             </DndContext>
           ) : (
-            <SidebarMenu ref={attachProjectListAutoAnimateRef}>
+            <SidebarMenu ref={attachProjectListAutoAnimateRef} data-projects-list>
               {sortedProjects.map((project) => (
                 <SidebarMenuItem key={project.id} className="rounded-md">
                   {renderProjectItem(project, null)}

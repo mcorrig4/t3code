@@ -411,7 +411,8 @@ async function rewriteKeybindingsAndWaitForPush(
 async function requestPath(
   port: number,
   requestPath: string,
-): Promise<{ statusCode: number; body: string }> {
+  options?: { headers?: Record<string, string> },
+): Promise<{ statusCode: number; body: string; headers: Http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
     const req = Http.request(
       {
@@ -419,6 +420,7 @@ async function requestPath(
         port,
         path: requestPath,
         method: "GET",
+        headers: options?.headers,
       },
       (res) => {
         const chunks: Buffer[] = [];
@@ -429,6 +431,7 @@ async function requestPath(
           resolve({
             statusCode: res.statusCode ?? 0,
             body: Buffer.concat(chunks).toString("utf8"),
+            headers: res.headers,
           });
         });
       },
@@ -531,6 +534,9 @@ describe("WebSocket Server", () => {
       devUrl,
       noBrowser: true,
       authToken: options.authToken,
+      webPushVapidPublicKey: undefined,
+      webPushVapidPrivateKey: undefined,
+      webPushSubject: undefined,
       autoBootstrapProjectFromCwd: options.autoBootstrapProjectFromCwd ?? false,
       logWebSocketEvents: options.logWebSocketEvents ?? Boolean(options.devUrl),
     } satisfies ServerConfigShape);
@@ -656,6 +662,108 @@ describe("WebSocket Server", () => {
     expect(response.headers.get("content-type")).toContain("image/png");
     const bytes = Buffer.from(await response.arrayBuffer());
     expect(bytes).toEqual(Buffer.from("hello-encoded-attachment"));
+  });
+
+  it("supports byte-range requests for persisted attachments", async () => {
+    const baseDir = makeTempDir("t3code-state-attachments-range-");
+    const { attachmentsDir } = deriveServerPathsSync(baseDir, undefined);
+    const attachmentPath = path.join(attachmentsDir, "thread-a", "message-a", "0.webm");
+    fs.mkdirSync(path.dirname(attachmentPath), { recursive: true });
+    fs.writeFileSync(attachmentPath, Buffer.from("hello-attachment"));
+
+    server = await createTestServer({ cwd: "/test/project", baseDir });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    const response = await requestPath(port, "/attachments/thread-a/message-a/0.webm", {
+      headers: { Range: "bytes=0-4" },
+    });
+    expect(response.statusCode).toBe(206);
+    expect(response.headers["accept-ranges"]).toBe("bytes");
+    expect(response.headers["content-range"]).toBe("bytes 0-4/16");
+    expect(response.body).toBe("hello");
+  });
+
+  it("serves workspace media rooted in the project workspace", async () => {
+    const workspaceRoot = makeTempDir("t3code-workspace-media-");
+    const mediaPath = path.join(workspaceRoot, "test-results", "foo.png");
+    fs.mkdirSync(path.dirname(mediaPath), { recursive: true });
+    fs.writeFileSync(mediaPath, Buffer.from("workspace-media"));
+
+    server = await createTestServer({ cwd: workspaceRoot });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/workspace-media?cwd=${encodeURIComponent(
+        workspaceRoot,
+      )}&path=${encodeURIComponent("test-results/foo.png")}`,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toContain("image/png");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    const bytes = Buffer.from(await response.arrayBuffer());
+    expect(bytes).toEqual(Buffer.from("workspace-media"));
+  });
+
+  it("rejects workspace media outside the project root", async () => {
+    const workspaceRoot = makeTempDir("t3code-workspace-media-invalid-");
+    server = await createTestServer({ cwd: workspaceRoot });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/workspace-media?cwd=${encodeURIComponent(
+        workspaceRoot,
+      )}&path=${encodeURIComponent("../outside.png")}`,
+    );
+    expect(response.status).toBe(400);
+    expect(await response.text()).toBe("Invalid workspace media path");
+  });
+
+  it("returns 404 for missing workspace media files", async () => {
+    const workspaceRoot = makeTempDir("t3code-workspace-media-missing-");
+    server = await createTestServer({ cwd: workspaceRoot });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/workspace-media?cwd=${encodeURIComponent(
+        workspaceRoot,
+      )}&path=${encodeURIComponent("test-results/missing.webm")}`,
+    );
+    expect(response.status).toBe(404);
+    expect(await response.text()).toBe("Not Found");
+  });
+
+  it("supports byte-range requests for workspace media", async () => {
+    const workspaceRoot = makeTempDir("t3code-workspace-media-range-");
+    const mediaPath = path.join(workspaceRoot, "test-results", "foo.webm");
+    fs.mkdirSync(path.dirname(mediaPath), { recursive: true });
+    fs.writeFileSync(mediaPath, Buffer.from("workspace-video"));
+
+    server = await createTestServer({ cwd: workspaceRoot });
+    const addr = server.address();
+    const port = typeof addr === "object" && addr !== null ? addr.port : 0;
+    expect(port).toBeGreaterThan(0);
+
+    const response = await requestPath(
+      port,
+      `/api/workspace-media?cwd=${encodeURIComponent(workspaceRoot)}&path=${encodeURIComponent(
+        "test-results/foo.webm",
+      )}`,
+      {
+        headers: { Range: "bytes=0-8" },
+      },
+    );
+    expect(response.statusCode).toBe(206);
+    expect(response.headers["accept-ranges"]).toBe("bytes");
+    expect(response.headers["content-range"]).toBe("bytes 0-8/15");
+    expect(response.body).toBe("workspace");
   });
 
   it("serves static index for root path", async () => {

@@ -43,6 +43,7 @@ import { SidebarInset } from "../components/ui/sidebar";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../components/ui/tooltip";
 import { resolveAndPersistPreferredEditor } from "../editorPreferences";
 import { isElectron } from "../env";
+import { useForkSettingsResetPlan } from "../fork/settings";
 import { useTheme } from "../hooks/useTheme";
 import { serverConfigQueryOptions, serverQueryKeys } from "../lib/serverReactQuery";
 import { cn } from "../lib/utils";
@@ -50,6 +51,8 @@ import { formatRelativeTime } from "../timestampFormat";
 import { ensureNativeApi, readNativeApi } from "../nativeApi";
 import { DEFAULT_UNIFIED_SETTINGS } from "@t3tools/contracts/settings";
 import { Equal } from "effect";
+import { ForkSettingsSection } from "../settings/ForkSettingsSection";
+import { buildUpstreamSettingsResetPlan } from "../settings/resetPlan";
 
 const THEME_OPTIONS = [
   {
@@ -350,35 +353,15 @@ function SettingsRouteView() {
     textGenProvider,
     textGenModel,
   );
-  const areProviderSettingsDirty = PROVIDER_SETTINGS.some((providerSettings) => {
-    const currentSettings = settings.providers[providerSettings.provider];
-    const defaultSettings = DEFAULT_UNIFIED_SETTINGS.providers[providerSettings.provider];
-    return !Equal.equals(currentSettings, defaultSettings);
-  });
-  const isGitWritingModelDirty = !Equal.equals(
-    settings.textGenerationModelSelection ?? null,
-    DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection ?? null,
+  const { resetPlan } = useForkSettingsResetPlan(
+    buildUpstreamSettingsResetPlan({
+      theme,
+      setTheme,
+      settings,
+      defaults: DEFAULT_UNIFIED_SETTINGS,
+      resetSettings,
+    }),
   );
-  const changedSettingLabels = [
-    ...(theme !== "system" ? ["Theme"] : []),
-    ...(settings.timestampFormat !== DEFAULT_UNIFIED_SETTINGS.timestampFormat
-      ? ["Time format"]
-      : []),
-    ...(settings.diffWordWrap !== DEFAULT_UNIFIED_SETTINGS.diffWordWrap
-      ? ["Diff line wrapping"]
-      : []),
-    ...(settings.enableAssistantStreaming !== DEFAULT_UNIFIED_SETTINGS.enableAssistantStreaming
-      ? ["Assistant output"]
-      : []),
-    ...(settings.defaultThreadEnvMode !== DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode
-      ? ["New thread mode"]
-      : []),
-    ...(settings.confirmThreadDelete !== DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete
-      ? ["Delete confirmation"]
-      : []),
-    ...(isGitWritingModelDirty ? ["Git writing model"] : []),
-    ...(areProviderSettingsDirty ? ["Providers"] : []),
-  ];
 
   const openKeybindingsFile = useCallback(() => {
     if (!keybindingsConfigPath) return;
@@ -538,18 +521,18 @@ function SettingsRouteView() {
   });
 
   async function restoreDefaults() {
-    if (changedSettingLabels.length === 0) return;
+    if (!resetPlan.hasChanges) return;
 
     const api = readNativeApi();
     const confirmed = await (api ?? ensureNativeApi()).dialogs.confirm(
-      ["Restore default settings?", `This will reset: ${changedSettingLabels.join(", ")}.`].join(
-        "\n",
-      ),
+      [
+        "Restore default settings?",
+        `This will reset: ${resetPlan.allDirtyLabels.join(", ")}.`,
+      ].join("\n"),
     );
     if (!confirmed) return;
 
-    setTheme("system");
-    resetSettings();
+    resetPlan.resetPersistentSettings();
     setOpenProviderDetails({
       codex: false,
       claudeAgent: false,
@@ -573,7 +556,7 @@ function SettingsRouteView() {
                 <Button
                   size="xs"
                   variant="outline"
-                  disabled={changedSettingLabels.length === 0}
+                  disabled={!resetPlan.hasChanges}
                   onClick={() => void restoreDefaults()}
                 >
                   <RotateCcwIcon className="size-3.5" />
@@ -593,7 +576,7 @@ function SettingsRouteView() {
               <Button
                 size="xs"
                 variant="outline"
-                disabled={changedSettingLabels.length === 0}
+                disabled={!resetPlan.hasChanges}
                 onClick={() => void restoreDefaults()}
               >
                 <RotateCcwIcon className="size-3.5" />
@@ -1266,6 +1249,8 @@ function SettingsRouteView() {
             </SettingsSection>
 
             <SettingsSection title="Advanced">
+              <ForkSettingsSection />
+
               <SettingsRow
                 title="Keybindings"
                 description="Open the persisted `keybindings.json` file to edit advanced bindings directly."

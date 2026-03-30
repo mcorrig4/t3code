@@ -81,6 +81,7 @@ import {
 import { basenameOfPath } from "../vscode-icons";
 import { useTheme } from "../hooks/useTheme";
 import { useTurnDiffSummaries } from "../hooks/useTurnDiffSummaries";
+import { openInPreferredEditor } from "../editorPreferences";
 import BranchToolbar from "./BranchToolbar";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import PlanSidebar from "./PlanSidebar";
@@ -322,7 +323,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   const promptRef = useRef(prompt);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [isDragOverComposer, setIsDragOverComposer] = useState(false);
-  const [expandedImage, setExpandedImage] = useState<ExpandedImagePreview | null>(null);
+  const [expandedMedia, setExpandedMedia] = useState<ExpandedImagePreview | null>(null);
   const [optimisticUserMessages, setOptimisticUserMessages] = useState<ChatMessage[]>([]);
   const optimisticUserMessagesRef = useRef(optimisticUserMessages);
   optimisticUserMessagesRef.current = optimisticUserMessages;
@@ -2009,7 +2010,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
     setComposerTrigger(detectComposerTrigger(promptRef.current, promptRef.current.length));
     dragDepthRef.current = 0;
     setIsDragOverComposer(false);
-    setExpandedImage(null);
+    setExpandedMedia(null);
   }, [threadId]);
 
   useEffect(() => {
@@ -2079,15 +2080,15 @@ export default function ChatView({ threadId }: ChatViewProps) {
   ]);
 
   const closeExpandedImage = useCallback(() => {
-    setExpandedImage(null);
+    setExpandedMedia(null);
   }, []);
   const navigateExpandedImage = useCallback((direction: -1 | 1) => {
-    setExpandedImage((existing) => {
-      if (!existing || existing.images.length <= 1) {
+    setExpandedMedia((existing) => {
+      if (!existing || existing.items.length <= 1) {
         return existing;
       }
       const nextIndex =
-        (existing.index + direction + existing.images.length) % existing.images.length;
+        (existing.index + direction + existing.items.length) % existing.items.length;
       if (nextIndex === existing.index) {
         return existing;
       }
@@ -2096,7 +2097,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
   }, []);
 
   useEffect(() => {
-    if (!expandedImage) {
+    if (!expandedMedia) {
       return;
     }
 
@@ -2107,7 +2108,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
         closeExpandedImage();
         return;
       }
-      if (expandedImage.images.length <= 1) {
+      if (expandedMedia.items.length <= 1) {
         return;
       }
       if (event.key === "ArrowLeft") {
@@ -2124,7 +2125,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [closeExpandedImage, expandedImage, navigateExpandedImage]);
+  }, [closeExpandedImage, expandedMedia, navigateExpandedImage]);
 
   const activeWorktreePath = activeThread?.worktreePath;
   const envMode: DraftThreadEnvMode = activeWorktreePath
@@ -3496,9 +3497,9 @@ export default function ChatView({ threadId }: ChatViewProps) {
     }));
   }, []);
   const onExpandTimelineImage = useCallback((preview: ExpandedImagePreview) => {
-    setExpandedImage(preview);
+    setExpandedMedia(preview);
   }, []);
-  const expandedImageItem = expandedImage ? expandedImage.images[expandedImage.index] : null;
+  const expandedMediaItem = expandedMedia ? expandedMedia.items[expandedMedia.index] : null;
   const onOpenTurnDiff = useCallback(
     (turnId: TurnId, filePath?: string) => {
       void navigate({
@@ -3631,7 +3632,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                 revertTurnCountByUserMessageId={revertTurnCountByUserMessageId}
                 onRevertUserMessage={onRevertUserMessage}
                 isRevertingCheckpoint={isRevertingCheckpoint}
-                onImageExpand={onExpandTimelineImage}
+                onMediaExpand={onExpandTimelineImage}
                 markdownCwd={gitCwd ?? undefined}
                 resolvedTheme={resolvedTheme}
                 timestampFormat={timestampFormat}
@@ -3745,7 +3746,7 @@ export default function ChatView({ threadId }: ChatViewProps) {
                                       image.id,
                                     );
                                     if (!preview) return;
-                                    setExpandedImage(preview);
+                                    setExpandedMedia(preview);
                                   }}
                                 >
                                   <img
@@ -4231,20 +4232,20 @@ export default function ChatView({ threadId }: ChatViewProps) {
         );
       })()}
 
-      {expandedImage && expandedImageItem && (
+      {expandedMedia && expandedMediaItem && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 py-6 [-webkit-app-region:no-drag]"
           role="dialog"
           aria-modal="true"
-          aria-label="Expanded image preview"
+          aria-label="Expanded media preview"
         >
           <button
             type="button"
             className="absolute inset-0 z-0 cursor-zoom-out"
-            aria-label="Close image preview"
+            aria-label="Close media preview"
             onClick={closeExpandedImage}
           />
-          {expandedImage.images.length > 1 && (
+          {expandedMedia.items.length > 1 && (
             <Button
               type="button"
               size="icon"
@@ -4259,30 +4260,63 @@ export default function ChatView({ threadId }: ChatViewProps) {
             </Button>
           )}
           <div className="relative isolate z-10 max-h-[92vh] max-w-[92vw]">
-            <Button
-              type="button"
-              size="icon-xs"
-              variant="ghost"
-              className="absolute right-2 top-2"
-              onClick={closeExpandedImage}
-              aria-label="Close image preview"
-            >
-              <XIcon />
-            </Button>
-            <img
-              src={expandedImageItem.src}
-              alt={expandedImageItem.name}
-              className="max-h-[86vh] max-w-[92vw] select-none rounded-lg border border-border/70 bg-background object-contain shadow-2xl"
-              draggable={false}
-            />
+            <div className="absolute left-2 right-2 top-2 z-20 flex items-center justify-between gap-2">
+              {expandedMediaItem.sourcePath ? (
+                (() => {
+                  const sourcePath = expandedMediaItem.sourcePath;
+                  return (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="bg-background/80 hover:bg-background/90"
+                      onClick={() => {
+                        const api = readNativeApi();
+                        if (!api) return;
+                        void openInPreferredEditor(api, sourcePath);
+                      }}
+                    >
+                      Open in editor
+                    </Button>
+                  );
+                })()
+              ) : (
+                <span />
+              )}
+              <Button
+                type="button"
+                size="icon-xs"
+                variant="ghost"
+                className="bg-background/80 hover:bg-background/90"
+                onClick={closeExpandedImage}
+                aria-label="Close media preview"
+              >
+                <XIcon />
+              </Button>
+            </div>
+            {expandedMediaItem.kind === "image" ? (
+              <img
+                src={expandedMediaItem.src}
+                alt={expandedMediaItem.name}
+                className="max-h-[86vh] max-w-[92vw] select-none rounded-lg border border-border/70 bg-background object-contain shadow-2xl"
+                draggable={false}
+              />
+            ) : (
+              <video
+                src={expandedMediaItem.src}
+                controls
+                preload="metadata"
+                className="max-h-[86vh] max-w-[92vw] rounded-lg border border-border/70 bg-background shadow-2xl"
+              />
+            )}
             <p className="mt-2 max-w-[92vw] truncate text-center text-xs text-muted-foreground/80">
-              {expandedImageItem.name}
-              {expandedImage.images.length > 1
-                ? ` (${expandedImage.index + 1}/${expandedImage.images.length})`
+              {expandedMediaItem.name}
+              {expandedMedia.items.length > 1
+                ? ` (${expandedMedia.index + 1}/${expandedMedia.items.length})`
                 : ""}
             </p>
           </div>
-          {expandedImage.images.length > 1 && (
+          {expandedMedia.items.length > 1 && (
             <Button
               type="button"
               size="icon"

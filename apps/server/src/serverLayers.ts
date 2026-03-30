@@ -16,6 +16,9 @@ import { OrchestrationProjectionPipelineLive } from "./orchestration/Layers/Proj
 import { OrchestrationProjectionSnapshotQueryLive } from "./orchestration/Layers/ProjectionSnapshotQuery";
 import { ProviderRuntimeIngestionLive } from "./orchestration/Layers/ProviderRuntimeIngestion";
 import { RuntimeReceiptBusLive } from "./orchestration/Layers/RuntimeReceiptBus";
+import { ForkNotificationIntentResolverLive } from "./fork/notifications/intentResolver";
+import { WebPushNotificationsLive } from "./notifications/Layers/WebPushNotifications";
+import { WebPushSubscriptionRepositoryLive } from "./notifications/Layers/WebPushSubscriptionRepository";
 import { ProviderUnsupportedError } from "./provider/Errors";
 import { makeClaudeAdapterLive } from "./provider/Layers/ClaudeAdapter";
 import { makeCodexAdapterLive } from "./provider/Layers/CodexAdapter";
@@ -135,6 +138,11 @@ export function makeServerRuntimeServicesLayer() {
     Layer.provideMerge(GitHubCliLive),
     Layer.provideMerge(textGenerationLayer),
   );
+  const webPushLayer = WebPushNotificationsLive.pipe(
+    Layer.provide(ForkNotificationIntentResolverLive),
+    Layer.provide(WebPushSubscriptionRepositoryLive),
+    Layer.provideMerge(OrchestrationProjectionSnapshotQueryLive),
+  );
 
   return Layer.mergeAll(
     orchestrationReactorLayer,
@@ -142,5 +150,6 @@ export function makeServerRuntimeServicesLayer() {
     gitManagerLayer,
     terminalLayer,
     KeybindingsLive,
+    webPushLayer,
   ).pipe(Layer.provideMerge(NodeServices.layer));
 }

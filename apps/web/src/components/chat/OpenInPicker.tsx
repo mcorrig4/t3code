@@ -9,6 +9,7 @@ import { Menu, MenuItem, MenuPopup, MenuShortcut, MenuTrigger } from "../ui/menu
 import { AntigravityIcon, CursorIcon, Icon, VisualStudioCode, Zed } from "../Icons";
 import { isMacPlatform, isWindowsPlatform } from "~/lib/utils";
 import { readNativeApi } from "~/nativeApi";
+import { useShouldHideHeaderOpenInPicker } from "~/pwa";
 
 const resolveOptions = (platform: string, availableEditors: ReadonlyArray<EditorId>) => {
   const baseOptions: ReadonlyArray<{ label: string; Icon: Icon; value: EditorId }> = [
@@ -21,16 +22,6 @@ const resolveOptions = (platform: string, availableEditors: ReadonlyArray<Editor
       label: "VS Code",
       Icon: VisualStudioCode,
       value: "vscode",
-    },
-    {
-      label: "VS Code Insiders",
-      Icon: VisualStudioCode,
-      value: "vscode-insiders",
-    },
-    {
-      label: "VSCodium",
-      Icon: VisualStudioCode,
-      value: "vscodium",
     },
     {
       label: "Zed",
@@ -65,6 +56,7 @@ export const OpenInPicker = memo(function OpenInPicker({
   openInCwd: string | null;
 }) {
   const [preferredEditor, setPreferredEditor] = usePreferredEditor(availableEditors);
+  const shouldHideInCompactStandalone = useShouldHideHeaderOpenInPicker();
   const options = useMemo(
     () => resolveOptions(navigator.platform, availableEditors),
     [availableEditors],
@@ -102,6 +94,10 @@ export const OpenInPicker = memo(function OpenInPicker({
     return () => window.removeEventListener("keydown", handler);
   }, [preferredEditor, keybindings, openInCwd]);
 
+  if (shouldHideInCompactStandalone) {
+    return null;
+  }
+
   return (
     <Group aria-label="Subscription actions">
       <Button
@@ -111,11 +107,11 @@ export const OpenInPicker = memo(function OpenInPicker({
         onClick={() => openInEditor(preferredEditor)}
       >
         {primaryOption?.Icon && <primaryOption.Icon aria-hidden="true" className="size-3.5" />}
-        <span className="sr-only @3xl/header-actions:not-sr-only @3xl/header-actions:ml-0.5">
+        <span className="sr-only @sm/header-actions:not-sr-only @sm/header-actions:ml-0.5">
           Open
         </span>
       </Button>
-      <GroupSeparator className="hidden @3xl/header-actions:block" />
+      <GroupSeparator className="hidden @sm/header-actions:block" />
       <Menu>
         <MenuTrigger render={<Button aria-label="Copy options" size="icon-xs" variant="outline" />}>
           <ChevronDownIcon aria-hidden="true" className="size-4" />

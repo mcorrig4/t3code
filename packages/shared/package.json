@@ -28,13 +28,17 @@
       "types": "./src/DrainableWorker.ts",
       "import": "./src/DrainableWorker.ts"
     },
+    "./Struct": {
+      "types": "./src/Struct.ts",
+      "import": "./src/Struct.ts"
+    },
     "./schemaJson": {
       "types": "./src/schemaJson.ts",
       "import": "./src/schemaJson.ts"
     },
-    "./Struct": {
-      "types": "./src/Struct.ts",
-      "import": "./src/Struct.ts"
+    "./branding": {
+      "types": "./src/branding.ts",
+      "import": "./src/branding.ts"
     }
   },
   "scripts": {

@@ -21,8 +21,10 @@ import { resolveDiffThemeName, type DiffThemeName } from "../lib/diffRendering";
 import { fnv1a32 } from "../lib/diffRendering";
 import { LRUCache } from "../lib/lruCache";
 import { useTheme } from "../hooks/useTheme";
+import { type PreviewableChatMediaLink, resolvePreviewableChatMediaLink } from "../chatMediaLinks";
 import { resolveMarkdownFileLinkTarget } from "../markdown-links";
 import { readNativeApi } from "../nativeApi";
+import { resolveServerHttpOrigin } from "../lib/serverHttpOrigin";
 
 class CodeHighlightErrorBoundary extends React.Component<
   { fallback: ReactNode; children: ReactNode },
@@ -48,6 +50,8 @@ class CodeHighlightErrorBoundary extends React.Component<
 interface ChatMarkdownProps {
   text: string;
   cwd: string | undefined;
+  previewWorkspaceRoot?: string;
+  onOpenMediaLink?: ((mediaLink: PreviewableChatMediaLink) => void) | undefined;
   isStreaming?: boolean;
 }
 
@@ -235,13 +239,39 @@ function SuspenseShikiCodeBlock({
   );
 }
 
-function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
+function ChatMarkdown({
+  text,
+  cwd,
+  previewWorkspaceRoot,
+  onOpenMediaLink,
+  isStreaming = false,
+}: ChatMarkdownProps) {
   const { resolvedTheme } = useTheme();
   const diffThemeName = resolveDiffThemeName(resolvedTheme);
+  const serverHttpOrigin = resolveServerHttpOrigin();
   const markdownComponents = useMemo<Components>(
     () => ({
       a({ node: _node, href, ...props }) {
+        const previewableMediaLink = resolvePreviewableChatMediaLink({
+          href,
+          serverHttpOrigin,
+          ...(cwd ? { cwd } : {}),
+          ...(previewWorkspaceRoot ? { workspaceRoot: previewWorkspaceRoot } : {}),
+        });
         const targetPath = resolveMarkdownFileLinkTarget(href, cwd);
+        if (previewableMediaLink && onOpenMediaLink) {
+          return (
+            <a
+              {...props}
+              href={href}
+              onClick={(event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                onOpenMediaLink(previewableMediaLink);
+              }}
+            />
+          );
+        }
         if (!targetPath) {
           return <a {...props} href={href} target="_blank" rel="noreferrer" />;
         }
@@ -285,7 +315,7 @@ function ChatMarkdown({ text, cwd, isStreaming = false }: ChatMarkdownProps) {
         );
       },
     }),
-    [cwd, diffThemeName, isStreaming],
+    [cwd, diffThemeName, isStreaming, onOpenMediaLink, previewWorkspaceRoot, serverHttpOrigin],
   );
 
   return (

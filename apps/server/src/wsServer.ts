@@ -7,6 +7,7 @@
  * @module Server
  */
 import http from "node:http";
+import fs from "node:fs";
 import type { Duplex } from "node:stream";
 
 import Mime from "@effect/platform-node/Mime";
@@ -58,6 +59,8 @@ import { ProviderService } from "./provider/Services/ProviderService";
 import { ProviderRegistry } from "./provider/Services/ProviderRegistry";
 import { CheckpointDiffQuery } from "./checkpointing/Services/CheckpointDiffQuery";
 import { clamp } from "effect/Number";
+import { maybeBuildForkHtmlDocumentResponse, tryHandleForkHttpRequest } from "./fork/http/index.ts";
+import { WebPushNotifications } from "./notifications/Services/WebPushNotifications.ts";
 import { Open, resolveAvailableEditors } from "./open";
 import { ServerConfig } from "./config";
 import { GitCore } from "./git/Services/GitCore.ts";
@@ -79,6 +82,8 @@ import { expandHomePath } from "./os-jank.ts";
 import { makeServerPushBus } from "./wsServer/pushBus.ts";
 import { makeServerReadiness } from "./wsServer/readiness.ts";
 import { decodeJsonResult, formatSchemaError } from "@t3tools/shared/schemaJson";
+
+const WORKSPACE_MEDIA_ROUTE = "/api/workspace-media";
 
 /**
  * ServerShape - Service API for server lifecycle control.
@@ -196,6 +201,162 @@ function resolveWorkspaceWritePath(params: {
   });
 }
 
+function resolveWorkspaceReadPath(params: {
+  workspaceRoot: string;
+  targetPath: string;
+  path: Path.Path;
+}): Effect.Effect<{ absolutePath: string; relativePath: string }, RouteRequestError> {
+  const normalizedInputPath = params.targetPath.trim();
+  if (normalizedInputPath.length === 0) {
+    return Effect.fail(
+      new RouteRequestError({
+        message: "Workspace media path is required.",
+      }),
+    );
+  }
+  if (normalizedInputPath.includes("\0")) {
+    return Effect.fail(
+      new RouteRequestError({
+        message: "Workspace media path contains invalid characters.",
+      }),
+    );
+  }
+
+  const absolutePath = params.path.isAbsolute(normalizedInputPath)
+    ? params.path.resolve(normalizedInputPath)
+    : params.path.resolve(params.workspaceRoot, normalizedInputPath);
+  const relativeToRoot = toPosixRelativePath(
+    params.path.relative(params.workspaceRoot, absolutePath),
+  );
+  if (
+    relativeToRoot.length === 0 ||
+    relativeToRoot === "." ||
+    relativeToRoot.startsWith("../") ||
+    relativeToRoot === ".." ||
+    params.path.isAbsolute(relativeToRoot)
+  ) {
+    return Effect.fail(
+      new RouteRequestError({
+        message: "Workspace media path must stay within the project root.",
+      }),
+    );
+  }
+
+  return Effect.succeed({
+    absolutePath,
+    relativePath: relativeToRoot,
+  });
+}
+
+function parseByteRange(
+  rangeHeader: string | undefined,
+  sizeBytes: number,
+): { start: number; end: number } | "invalid" | null {
+  if (!rangeHeader) return null;
+  const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim());
+  if (!match) return "invalid";
+
+  const [, rawStart, rawEnd] = match;
+  if (!rawStart && !rawEnd) return "invalid";
+
+  if (!rawStart) {
+    const suffixLength = Number(rawEnd);
+    if (!Number.isInteger(suffixLength) || suffixLength <= 0) return "invalid";
+    const start = Math.max(sizeBytes - suffixLength, 0);
+    return { start, end: sizeBytes - 1 };
+  }
+
+  const start = Number(rawStart);
+  if (!Number.isInteger(start) || start < 0 || start >= sizeBytes) {
+    return "invalid";
+  }
+
+  if (!rawEnd) {
+    return { start, end: sizeBytes - 1 };
+  }
+
+  const end = Number(rawEnd);
+  if (!Number.isInteger(end) || end < start) {
+    return "invalid";
+  }
+
+  return { start, end: Math.min(end, sizeBytes - 1) };
+}
+
+async function pipeNodeFileToResponse(input: {
+  readonly response: http.ServerResponse;
+  readonly filePath: string;
+  readonly start?: number;
+  readonly end?: number;
+}): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const stream = fs.createReadStream(input.filePath, {
+      ...(input.start !== undefined ? { start: input.start } : {}),
+      ...(input.end !== undefined ? { end: input.end } : {}),
+    });
+    let settled = false;
+    const settle = (callback: () => void) => {
+      if (settled) return;
+      settled = true;
+      callback();
+    };
+
+    stream.once("error", (error) => {
+      settle(() => reject(error));
+    });
+    input.response.once("finish", () => {
+      settle(() => resolve());
+    });
+    input.response.once("close", () => {
+      settle(() => resolve());
+    });
+    stream.pipe(input.response);
+  });
+}
+
+function serveFileResponse(input: {
+  readonly request: http.IncomingMessage;
+  readonly response: http.ServerResponse;
+  readonly filePath: string;
+  readonly cacheControl: string;
+  readonly sizeBytes: number;
+  readonly contentType: string;
+}): Effect.Effect<void, never> {
+  return Effect.promise(async () => {
+    try {
+      const range = parseByteRange(input.request.headers.range, input.sizeBytes);
+      if (range === "invalid") {
+        input.response.writeHead(416, {
+          "Content-Range": `bytes */${input.sizeBytes}`,
+          "Content-Type": "text/plain",
+        });
+        input.response.end();
+        return;
+      }
+
+      const start = range?.start ?? 0;
+      const end = range?.end ?? input.sizeBytes - 1;
+      const contentLength = end - start + 1;
+      input.response.writeHead(range ? 206 : 200, {
+        "Accept-Ranges": "bytes",
+        "Cache-Control": input.cacheControl,
+        "Content-Length": String(contentLength),
+        "Content-Type": input.contentType,
+        ...(range ? { "Content-Range": `bytes ${start}-${end}/${input.sizeBytes}` } : {}),
+      });
+      await pipeNodeFileToResponse({
+        response: input.response,
+        filePath: input.filePath,
+        ...(range ? { start, end } : {}),
+      });
+    } catch {
+      if (!input.response.destroyed && !input.response.writableEnded) {
+        input.response.destroy();
+      }
+    }
+  });
+}
+
 function stripRequestTag<T extends { _tag: string }>(body: T) {
   return Struct.omit(body, ["_tag"]);
 }
@@ -219,7 +380,8 @@ export type ServerRuntimeServices =
   | Keybindings
   | ServerSettingsService
   | Open
-  | AnalyticsService;
+  | AnalyticsService
+  | WebPushNotifications;
 
 export class ServerLifecycleError extends Schema.TaggedErrorClass<ServerLifecycleError>()(
   "ServerLifecycleError",
@@ -262,6 +424,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   const keybindingsManager = yield* Keybindings;
   const serverSettingsManager = yield* ServerSettingsService;
   const providerRegistry = yield* ProviderRegistry;
+  const webPushNotifications = yield* WebPushNotifications;
   const git = yield* GitCore;
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -477,27 +640,79 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
             return;
           }
 
-          const contentType = Mime.getType(filePath) ?? "application/octet-stream";
-          res.writeHead(200, {
-            "Content-Type": contentType,
-            "Cache-Control": "public, max-age=31536000, immutable",
-          });
-          const streamExit = yield* Stream.runForEach(fileSystem.stream(filePath), (chunk) =>
-            Effect.sync(() => {
-              if (!res.destroyed) {
-                res.write(chunk);
-              }
-            }),
-          ).pipe(Effect.exit);
-          if (Exit.isFailure(streamExit)) {
-            if (!res.destroyed) {
-              res.destroy();
-            }
+          const sizeBytes = Number(fileInfo.size);
+          if (!Number.isFinite(sizeBytes)) {
+            respond(500, { "Content-Type": "text/plain" }, "Internal Server Error");
             return;
           }
-          if (!res.writableEnded) {
-            res.end();
+          const contentType = Mime.getType(filePath) ?? "application/octet-stream";
+          yield* serveFileResponse({
+            request: req,
+            response: res,
+            filePath,
+            cacheControl: "public, max-age=31536000, immutable",
+            sizeBytes,
+            contentType,
+          });
+          return;
+        }
+
+        if (url.pathname === WORKSPACE_MEDIA_ROUTE) {
+          const workspaceRoot = url.searchParams.get("cwd")?.trim();
+          const targetPath = url.searchParams.get("path")?.trim();
+          if (!workspaceRoot || !targetPath) {
+            respond(400, { "Content-Type": "text/plain" }, "Missing workspace media parameters");
+            return;
           }
+
+          const resolvedPath = yield* resolveWorkspaceReadPath({
+            workspaceRoot,
+            targetPath,
+            path,
+          }).pipe(Effect.catch(() => Effect.succeed(null)));
+          if (!resolvedPath) {
+            respond(400, { "Content-Type": "text/plain" }, "Invalid workspace media path");
+            return;
+          }
+
+          const fileInfo = yield* fileSystem
+            .stat(resolvedPath.absolutePath)
+            .pipe(Effect.catch(() => Effect.succeed(null)));
+          if (!fileInfo || fileInfo.type !== "File") {
+            respond(404, { "Content-Type": "text/plain" }, "Not Found");
+            return;
+          }
+
+          const sizeBytes = Number(fileInfo.size);
+          if (!Number.isFinite(sizeBytes)) {
+            respond(500, { "Content-Type": "text/plain" }, "Internal Server Error");
+            return;
+          }
+          const contentType = Mime.getType(resolvedPath.absolutePath) ?? "application/octet-stream";
+          yield* serveFileResponse({
+            request: req,
+            response: res,
+            filePath: resolvedPath.absolutePath,
+            cacheControl: "no-store",
+            sizeBytes,
+            contentType,
+          });
+          return;
+        }
+
+        if (
+          yield* tryHandleForkHttpRequest({
+            request: req,
+            response: res,
+            url,
+            serverConfig,
+            webPushNotifications,
+            fileSystem,
+            path,
+            staticRoot: staticDir ? path.resolve(staticDir) : null,
+            respond,
+          })
+        ) {
           return;
         }
 
@@ -566,6 +781,16 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
             respond(404, { "Content-Type": "text/plain" }, "Not Found");
             return;
           }
+          const htmlResponse = maybeBuildForkHtmlDocumentResponse({
+            html: Buffer.from(indexData).toString("utf8"),
+            request: req,
+            contentType: "text/html; charset=utf-8",
+            statusCode: 200,
+          });
+          if (htmlResponse) {
+            respond(htmlResponse.statusCode, htmlResponse.headers, htmlResponse.body);
+            return;
+          }
           respond(200, { "Content-Type": "text/html; charset=utf-8" }, indexData);
           return;
         }
@@ -577,6 +802,18 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         if (!data) {
           respond(500, { "Content-Type": "text/plain" }, "Internal Server Error");
           return;
+        }
+        if (contentType.includes("text/html")) {
+          const htmlResponse = maybeBuildForkHtmlDocumentResponse({
+            html: Buffer.from(data).toString("utf8"),
+            request: req,
+            contentType,
+            statusCode: 200,
+          });
+          if (htmlResponse) {
+            respond(htmlResponse.statusCode, htmlResponse.headers, htmlResponse.body);
+            return;
+          }
         }
         respond(200, { "Content-Type": contentType }, data);
       }),
@@ -621,7 +858,13 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   yield* Effect.addFinalizer(() => Scope.close(subscriptionsScope, Exit.void));
 
   yield* Stream.runForEach(orchestrationEngine.streamDomainEvents, (event) =>
-    pushBus.publishAll(ORCHESTRATION_WS_CHANNELS.domainEvent, event),
+    Effect.all(
+      [
+        pushBus.publishAll(ORCHESTRATION_WS_CHANNELS.domainEvent, event),
+        webPushNotifications.notifyEvent(event),
+      ],
+      { concurrency: "unbounded", discard: true },
+    ),
   ).pipe(Effect.forkIn(subscriptionsScope));
 
   yield* Stream.runForEach(keybindingsManager.streamChanges, (event) =>

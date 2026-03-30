@@ -2,6 +2,14 @@ import { MessageId } from "@t3tools/contracts";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
+function MockChatMarkdown(props: { text: string }) {
+  return <div data-mock-chat-markdown>{props.text}</div>;
+}
+
+vi.mock("../ChatMarkdown", () => ({
+  default: MockChatMarkdown,
+}));
+
 function matchMedia() {
   return {
     matches: false,
@@ -84,7 +92,7 @@ describe("MessagesTimeline", () => {
         revertTurnCountByUserMessageId={new Map()}
         onRevertUserMessage={() => {}}
         isRevertingCheckpoint={false}
-        onImageExpand={() => {}}
+        onMediaExpand={() => {}}
         markdownCwd={undefined}
         resolvedTheme="light"
         timestampFormat="locale"
@@ -129,7 +137,7 @@ describe("MessagesTimeline", () => {
         revertTurnCountByUserMessageId={new Map()}
         onRevertUserMessage={() => {}}
         isRevertingCheckpoint={false}
-        onImageExpand={() => {}}
+        onMediaExpand={() => {}}
         markdownCwd={undefined}
         resolvedTheme="light"
         timestampFormat="locale"
@@ -139,5 +147,53 @@ describe("MessagesTimeline", () => {
 
     expect(markup).toContain("Context compacted");
     expect(markup).toContain("Work log");
+  });
+
+  it("renders assistant message TTS controls before the timestamp", async () => {
+    const { MessagesTimeline } = await import("./MessagesTimeline");
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        hasMessages
+        isWorking={false}
+        activeTurnInProgress={false}
+        activeTurnStartedAt={null}
+        scrollContainer={null}
+        timelineEntries={[
+          {
+            id: "entry-tts-1",
+            kind: "message",
+            createdAt: "2026-03-17T19:12:30.000Z",
+            message: {
+              id: MessageId.makeUnsafe("assistant-tts-message"),
+              role: "assistant",
+              text: "This answer can be read aloud.",
+              createdAt: "2026-03-17T19:12:30.000Z",
+              completedAt: "2026-03-17T19:12:36.000Z",
+              streaming: false,
+            },
+          },
+        ]}
+        completionDividerBeforeEntryId={null}
+        completionSummary={null}
+        turnDiffSummaryByAssistantMessageId={new Map()}
+        nowIso="2026-03-17T19:12:36.000Z"
+        expandedWorkGroups={{}}
+        onToggleWorkGroup={() => {}}
+        onOpenTurnDiff={() => {}}
+        revertTurnCountByUserMessageId={new Map()}
+        onRevertUserMessage={() => {}}
+        isRevertingCheckpoint={false}
+        onMediaExpand={() => {}}
+        markdownCwd={undefined}
+        resolvedTheme="light"
+        timestampFormat="locale"
+        workspaceRoot={undefined}
+      />,
+    );
+
+    expect(markup).toContain("data-assistant-message-meta");
+    expect(markup.indexOf("Play message")).toBeLessThan(
+      markup.indexOf("data-assistant-message-timestamp"),
+    );
   });
 });

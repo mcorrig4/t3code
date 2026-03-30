@@ -533,6 +533,22 @@ const worker = setupWorker(
       },
     }),
   ),
+  http.get("*/api/workspace-media", ({ request }) => {
+    const url = new URL(request.url);
+    const targetPath = url.searchParams.get("path") ?? "";
+    if (targetPath.endsWith(".webm") || targetPath.endsWith(".mp4")) {
+      return HttpResponse.text("fake-video", {
+        headers: {
+          "Content-Type": targetPath.endsWith(".mp4") ? "video/mp4" : "video/webm",
+        },
+      });
+    }
+    return HttpResponse.text(ATTACHMENT_SVG, {
+      headers: {
+        "Content-Type": "image/svg+xml",
+      },
+    });
+  }),
   http.get("*/api/project-favicon", () => new HttpResponse(null, { status: 204 })),
 );
 
@@ -1075,6 +1091,109 @@ describe("ChatView timeline estimator parity (full app)", () => {
           });
         },
         { timeout: 8_000, interval: 16 },
+      );
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("opens assistant workspace image links in the media overlay and closes on escape", async () => {
+    const baseSnapshot = createSnapshotForTargetUser({
+      targetMessageId: "msg-user-bootstrap-media-image" as MessageId,
+      targetText: "bootstrap",
+    });
+    const threads = [...baseSnapshot.threads];
+    threads[0] = {
+      ...threads[0]!,
+      messages: [
+        createAssistantMessage({
+          id: "assistant-media-image" as MessageId,
+          text: "[Screenshot](test-results/foo.png)",
+          offsetSeconds: 1,
+        }),
+      ],
+    };
+    const snapshot = {
+      ...baseSnapshot,
+      threads,
+    };
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot,
+    });
+
+    try {
+      const link = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLAnchorElement>("a")).find(
+            (anchor) => anchor.textContent?.trim() === "Screenshot",
+          ) ?? null,
+        "Unable to find assistant screenshot link.",
+      );
+      link.click();
+
+      await waitForElement(
+        () => document.querySelector<HTMLElement>('[aria-label="Expanded media preview"]'),
+        "Unable to find expanded media preview dialog.",
+      );
+      await waitForElement(
+        () => document.querySelector<HTMLImageElement>('img[alt="foo.png"]'),
+        "Unable to find expanded screenshot image.",
+      );
+
+      window.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      await vi.waitFor(() => {
+        expect(document.querySelector('[aria-label="Expanded media preview"]')).toBeNull();
+      });
+    } finally {
+      await mounted.cleanup();
+    }
+  });
+
+  it("opens assistant workspace video links in the media overlay", async () => {
+    const baseSnapshot = createSnapshotForTargetUser({
+      targetMessageId: "msg-user-bootstrap-media-video" as MessageId,
+      targetText: "bootstrap",
+    });
+    const threads = [...baseSnapshot.threads];
+    threads[0] = {
+      ...threads[0]!,
+      messages: [
+        createAssistantMessage({
+          id: "assistant-media-video" as MessageId,
+          text: "[Recording](test-results/foo.webm)",
+          offsetSeconds: 1,
+        }),
+      ],
+    };
+    const snapshot = {
+      ...baseSnapshot,
+      threads,
+    };
+
+    const mounted = await mountChatView({
+      viewport: DEFAULT_VIEWPORT,
+      snapshot,
+    });
+
+    try {
+      const link = await waitForElement(
+        () =>
+          Array.from(document.querySelectorAll<HTMLAnchorElement>("a")).find(
+            (anchor) => anchor.textContent?.trim() === "Recording",
+          ) ?? null,
+        "Unable to find assistant recording link.",
+      );
+      link.click();
+
+      await waitForElement(
+        () => document.querySelector<HTMLElement>('[aria-label="Expanded media preview"]'),
+        "Unable to find expanded media preview dialog.",
+      );
+      await waitForElement(
+        () => document.querySelector<HTMLVideoElement>("video[controls]"),
+        "Unable to find expanded video preview.",
       );
     } finally {
       await mounted.cleanup();

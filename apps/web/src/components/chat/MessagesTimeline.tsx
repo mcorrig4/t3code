@@ -36,13 +36,19 @@ import {
 import { Button } from "../ui/button";
 import { clamp } from "effect/Number";
 import { estimateTimelineMessageHeight } from "../timelineHeight";
-import { buildExpandedImagePreview, ExpandedImagePreview } from "./ExpandedImagePreview";
+import {
+  buildExpandedImagePreview,
+  buildSingleExpandedMediaPreview,
+  ExpandedImagePreview,
+} from "./ExpandedImagePreview";
+import { type PreviewableChatMediaLink } from "../../chatMediaLinks";
 import { ProposedPlanCard } from "./ProposedPlanCard";
 import { ChangedFilesTree } from "./ChangedFilesTree";
 import { DiffStatLabel, hasNonZeroStat } from "./DiffStatLabel";
 import { MessageCopyButton } from "./MessageCopyButton";
 import { computeMessageDurationStart, normalizeCompactToolLabel } from "./MessagesTimeline.logic";
 import { TerminalContextInlineChip } from "./TerminalContextInlineChip";
+import { AssistantMessageTtsButton } from "~/features/tts/AssistantMessageTtsButton";
 import {
   deriveDisplayedUserMessageState,
   type ParsedTerminalContextEntry,
@@ -76,7 +82,7 @@ interface MessagesTimelineProps {
   revertTurnCountByUserMessageId: Map<MessageId, number>;
   onRevertUserMessage: (messageId: MessageId) => void;
   isRevertingCheckpoint: boolean;
-  onImageExpand: (preview: ExpandedImagePreview) => void;
+  onMediaExpand: (preview: ExpandedImagePreview) => void;
   markdownCwd: string | undefined;
   resolvedTheme: "light" | "dark";
   timestampFormat: TimestampFormat;
@@ -100,7 +106,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
   revertTurnCountByUserMessageId,
   onRevertUserMessage,
   isRevertingCheckpoint,
-  onImageExpand,
+  onMediaExpand,
   markdownCwd,
   resolvedTheme,
   timestampFormat,
@@ -378,7 +384,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                               onClick={() => {
                                 const preview = buildExpandedImagePreview(userImages, image.id);
                                 if (!preview) return;
-                                onImageExpand(preview);
+                                onMediaExpand(preview);
                               }}
                             >
                               <img
@@ -407,7 +413,10 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                   />
                 )}
                 <div className="mt-1.5 flex items-center justify-end gap-2">
-                  <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100">
+                  <div
+                    className="flex items-center gap-1.5 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100"
+                    data-slot="user-message-actions"
+                  >
                     {displayedUserMessage.copyText && (
                       <MessageCopyButton text={displayedUserMessage.copyText} />
                     )}
@@ -452,6 +461,17 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                 <ChatMarkdown
                   text={messageText}
                   cwd={markdownCwd}
+                  onOpenMediaLink={(mediaLink: PreviewableChatMediaLink) => {
+                    onMediaExpand(
+                      buildSingleExpandedMediaPreview({
+                        kind: mediaLink.kind,
+                        src: mediaLink.url,
+                        name: mediaLink.name,
+                        ...(mediaLink.sourcePath ? { sourcePath: mediaLink.sourcePath } : {}),
+                      }),
+                    );
+                  }}
+                  {...(markdownCwd ? { previewWorkspaceRoot: markdownCwd } : {})}
                   isStreaming={Boolean(row.message.streaming)}
                 />
                 {(() => {
@@ -510,15 +530,23 @@ export const MessagesTimeline = memo(function MessagesTimeline({
                     </div>
                   );
                 })()}
-                <p className="mt-1.5 text-[10px] text-muted-foreground/30">
-                  {formatMessageMeta(
-                    row.message.createdAt,
-                    row.message.streaming
-                      ? formatElapsed(row.durationStart, nowIso)
-                      : formatElapsed(row.durationStart, row.message.completedAt),
-                    timestampFormat,
-                  )}
-                </p>
+                <div
+                  className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground/30"
+                  data-assistant-message-meta
+                >
+                  {!row.message.streaming && row.message.text.trim().length > 0 ? (
+                    <AssistantMessageTtsButton messageId={row.message.id} text={row.message.text} />
+                  ) : null}
+                  <p data-assistant-message-timestamp>
+                    {formatMessageMeta(
+                      row.message.createdAt,
+                      row.message.streaming
+                        ? formatElapsed(row.durationStart, nowIso)
+                        : formatElapsed(row.durationStart, row.message.completedAt),
+                      timestampFormat,
+                    )}
+                  </p>
+                </div>
               </div>
             </>
           );

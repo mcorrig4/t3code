@@ -11,11 +11,23 @@ import { QueryClient, useQueryClient } from "@tanstack/react-query";
 import { Throttler } from "@tanstack/react-pacer";
 
 import { APP_DISPLAY_NAME } from "../branding";
+import { dismissBootShell } from "../bootShell";
+import { markBootReady } from "../bootState";
 import { Button } from "../components/ui/button";
 import { AnchoredToastProvider, ToastProvider, toastManager } from "../components/ui/toast";
+import {
+  formatCrashSnapshotSummary,
+  logCrashBreadcrumb,
+  logCrashBreadcrumbLazy,
+  setCrashSessionDisposition,
+} from "../debug/crashDebug";
 import { resolveAndPersistPreferredEditor } from "../editorPreferences";
+import { ForkRootSidecars } from "../fork/bootstrap";
+import { describePendingUserInputFailure, logForkDebugEvent } from "../fork/bootstrap/rootDebug";
+import { migrateLegacyForkSettings } from "../fork/settings";
 import { serverConfigQueryOptions, serverQueryKeys } from "../lib/serverReactQuery";
 import { readNativeApi } from "../nativeApi";
+import { useNotificationNavigation } from "../notifications/useNotificationNavigation";
 import { clearPromotedDraftThreads, useComposerDraftStore } from "../composerDraftStore";
 import { useStore } from "../store";
 import { useTerminalStateStore } from "../terminalStateStore";
@@ -37,30 +49,69 @@ export const Route = createRootRouteWithContext<{
 });
 
 function RootRouteView() {
+  useNotificationNavigation();
+
   if (!readNativeApi()) {
     return (
-      <div className="flex h-screen flex-col bg-background text-foreground">
-        <div className="flex flex-1 items-center justify-center">
-          <p className="text-sm text-muted-foreground">
-            Connecting to {APP_DISPLAY_NAME} server...
-          </p>
+      <>
+        <BootShellReadySignal nativeApiAvailable={false} />
+        <div className="flex h-screen flex-col bg-background text-foreground">
+          <div className="flex flex-1 items-center justify-center">
+            <p className="text-sm text-muted-foreground">
+              Connecting to {APP_DISPLAY_NAME} server...
+            </p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <ToastProvider>
-      <AnchoredToastProvider>
-        <EventRouter />
-        <DesktopProjectBootstrap />
-        <Outlet />
-      </AnchoredToastProvider>
-    </ToastProvider>
+    <>
+      <BootShellReadySignal nativeApiAvailable />
+      <ToastProvider>
+        <AnchoredToastProvider>
+          <EventRouter />
+          <DesktopProjectBootstrap />
+          <ForkRootSidecars />
+          <Outlet />
+        </AnchoredToastProvider>
+      </ToastProvider>
+    </>
   );
 }
 
+function BootShellReadySignal({ nativeApiAvailable }: { nativeApiAvailable: boolean }) {
+  const threadsHydrated = useStore((store) => store.threadsHydrated);
+
+  useEffect(() => {
+    if (!nativeApiAvailable || threadsHydrated) {
+      logCrashBreadcrumb({
+        level: "info",
+        stage: "boot-ready",
+        message: nativeApiAvailable
+          ? "Boot marked ready after threads hydrated."
+          : "Boot marked ready without native API.",
+      });
+      markBootReady();
+    }
+  }, [nativeApiAvailable, threadsHydrated]);
+
+  return null;
+}
+
 function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
+  useEffect(() => {
+    logCrashBreadcrumb({
+      level: "error",
+      stage: "root-route-error",
+      message: errorMessage(error),
+      detail: errorDetails(error),
+    });
+    setCrashSessionDisposition("root-error");
+    dismissBootShell({ immediate: true });
+  }, [error]);
+
   const message = errorMessage(error);
   const details = errorDetails(error);
 
@@ -131,6 +182,42 @@ function errorDetails(error: unknown): string {
   }
 }
 
+function summarizeSnapshotForCrashDebug(input: {
+  readonly snapshot: {
+    readonly snapshotSequence: number;
+    readonly projects: ReadonlyArray<unknown>;
+    readonly threads: ReadonlyArray<{
+      readonly messages: ReadonlyArray<unknown>;
+      readonly checkpoints: ReadonlyArray<unknown>;
+      readonly activities: ReadonlyArray<unknown>;
+    }>;
+  };
+  readonly currentRoute: string;
+}): string {
+  const totalMessageCount = input.snapshot.threads.reduce(
+    (total, thread) => total + thread.messages.length,
+    0,
+  );
+  const totalCheckpointCount = input.snapshot.threads.reduce(
+    (total, thread) => total + thread.checkpoints.length,
+    0,
+  );
+  const totalActivityCount = input.snapshot.threads.reduce(
+    (total, thread) => total + thread.activities.length,
+    0,
+  );
+
+  return formatCrashSnapshotSummary({
+    snapshotSequence: input.snapshot.snapshotSequence,
+    projectCount: input.snapshot.projects.length,
+    threadCount: input.snapshot.threads.length,
+    totalMessageCount,
+    totalCheckpointCount,
+    totalActivityCount,
+    currentRoute: input.currentRoute,
+  });
+}
+
 function EventRouter() {
   const syncServerReadModel = useStore((store) => store.syncServerReadModel);
   const setProjectExpanded = useStore((store) => store.setProjectExpanded);
@@ -155,10 +242,26 @@ function EventRouter() {
     let needsProviderInvalidation = false;
 
     const flushSnapshotSync = async (): Promise<void> => {
+      logCrashBreadcrumb({
+        level: "info",
+        stage: "snapshot-sync-start",
+        message: "Fetching orchestration snapshot.",
+        route: pathnameRef.current,
+      });
       const snapshot = await api.orchestration.getSnapshot();
       if (disposed) return;
       latestSequence = Math.max(latestSequence, snapshot.snapshotSequence);
       syncServerReadModel(snapshot);
+      logCrashBreadcrumb({
+        level: "info",
+        stage: "snapshot-sync-complete",
+        message: `Applied orchestration snapshot ${snapshot.snapshotSequence}.`,
+        route: pathnameRef.current,
+        detail: summarizeSnapshotForCrashDebug({
+          snapshot,
+          currentRoute: pathnameRef.current,
+        }),
+      });
       clearPromotedDraftThreads(new Set(snapshot.threads.map((t) => t.id)));
       const draftThreadIds = Object.keys(
         useComposerDraftStore.getState().draftThreadsByThreadId,
@@ -183,7 +286,15 @@ function EventRouter() {
       pending = false;
       try {
         await flushSnapshotSync();
-      } catch {
+      } catch (error) {
+        logCrashBreadcrumb({
+          level: "error",
+          stage: "snapshot-sync-failed",
+          message:
+            error instanceof Error ? error.message : "Snapshot sync failed with unknown error.",
+          route: pathnameRef.current,
+          detail: error instanceof Error ? (error.stack ?? error.message) : undefined,
+        });
         // Keep prior state and wait for next domain event to trigger a resync.
       }
       syncing = false;
@@ -208,12 +319,35 @@ function EventRouter() {
     );
 
     const unsubDomainEvent = api.orchestration.onDomainEvent((event) => {
+      logForkDebugEvent(event);
+      logCrashBreadcrumbLazy(() => ({
+        level: "info",
+        stage: "domain-event",
+        message: `Observed ${event.type}.`,
+        route: pathnameRef.current,
+        detail: JSON.stringify({
+          sequence: event.sequence,
+          ...(typeof (event.payload as { threadId?: unknown }).threadId === "string"
+            ? { threadId: (event.payload as { threadId: string }).threadId }
+            : {}),
+        }),
+      }));
       if (event.sequence <= latestSequence) {
         return;
       }
       latestSequence = event.sequence;
       if (event.type === "thread.turn-diff-completed" || event.type === "thread.reverted") {
         needsProviderInvalidation = true;
+      }
+      if (
+        event.type === "thread.activity-appended" &&
+        event.payload.activity.kind === "provider.user-input.respond.failed"
+      ) {
+        toastManager.add({
+          type: "warning",
+          title: "Question expired",
+          description: describePendingUserInputFailure(event.payload.activity),
+        });
       }
       domainEventFlushThrottler.maybeExecute();
     });
@@ -231,7 +365,7 @@ function EventRouter() {
         );
     });
     const unsubWelcome = onServerWelcome((payload) => {
-      // Migrate old localStorage settings to server on first connect
+      migrateLegacyForkSettings();
       migrateLocalSettingsToServer();
       void (async () => {
         await syncSnapshot();
