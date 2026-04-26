@@ -1,0 +1,23 @@
+name: Production Source Guard
+
+on:
+  pull_request:
+    branches:
+      - production
+
+jobs:
+  require-main-source:
+    name: Require main as PR source
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate source branch
+        run: |
+          if [ "${{ github.head_ref }}" != "main" ]; then
+            echo "Production promotions must come from main; received '${{ github.head_ref }}'." >&2
+            exit 1
+          fi
+
+          if [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+            echo "Production promotions must come from this repository's main branch; received '${{ github.event.pull_request.head.repo.full_name }}'." >&2
+            exit 1
+          fi
