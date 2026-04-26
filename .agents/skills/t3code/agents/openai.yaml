@@ -1,0 +1,4 @@
+interface:
+  display_name: "T3 Code Fork Engineering"
+  short_description: "Fork-safe engineering for T3 Code."
+  default_prompt: "Use $t3code-fork-engineering to handle this T3 Code change with seam-first capsule design, verification, and sync-safe documentation updates."
