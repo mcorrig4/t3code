@@ -7,6 +7,7 @@ import "@xterm/xterm/css/xterm.css";
 import "./index.css";
 
 import { isElectron } from "./env";
+import { installForkWebShell } from "./fork/bootstrap";
 import { getRouter } from "./router";
 import { APP_DISPLAY_NAME } from "./branding";
 import { syncDocumentWindowControlsOverlayClass } from "./lib/windowControlsOverlay";
@@ -15,6 +16,10 @@ import { syncDocumentWindowControlsOverlayClass } from "./lib/windowControlsOver
 const history = isElectron ? createHashHistory() : createBrowserHistory();
 
 const router = getRouter(history);
+const forkWebShell = installForkWebShell({
+  doc: document,
+  hostname: window.location.hostname,
+});
 
 if (isElectron) {
   syncDocumentWindowControlsOverlayClass();
@@ -27,3 +32,5 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <RouterProvider router={router} />
   </React.StrictMode>,
 );
+
+void forkWebShell.bootReady;

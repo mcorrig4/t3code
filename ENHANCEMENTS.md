@@ -101,7 +101,7 @@ For the detailed historical changelog from the initial fork buildout (March 2026
 - Seam: `apps/web/src/main.tsx` → `apps/web/src/fork/bootstrap/`
 - Files:
   - `apps/web/index.html`, `apps/web/public/manifest.webmanifest`, `apps/web/public/service-worker.js`, `apps/web/public/sw.js`
-  - `apps/server/src/fork/branding.ts`, `apps/server/src/wsServer.ts`, `apps/server/src/wsServer.test.ts`
+  - `apps/server/src/http.ts`, `apps/server/src/fork/branding.ts`, `apps/server/src/fork/http/brandingRoutes.ts`, `apps/server/src/fork/http/brandingRoutes.test.ts`
   - `apps/web/src/main.tsx`, `apps/web/src/runtimeBranding.ts`, `apps/web/src/pwa.ts`, `apps/web/src/pwa.test.ts`
   - `packages/shared/src/branding.ts`, `packages/shared/src/branding.test.ts`
 - Upstream replacement trigger: upstream adds root-scoped PWA install with host-aware manifests
@@ -130,11 +130,10 @@ For the detailed historical changelog from the initial fork buildout (March 2026
 - Status: active | Added: 2026-03-16 | Updated: 2026-03-26
 - Upstream impact: low
 - Why: Dev host at `t3-dev.claude.do` needs visibly distinct branding (red palette, "DEVELOP" badge) so dev sessions are hard to confuse with production.
-- Seam: `apps/web/src/main.tsx` → `apps/web/src/fork/bootstrap/`; `apps/server/src/wsServer.ts` → `apps/server/src/fork/http/brandingRoutes.ts`
+- Seam: `apps/web/src/main.tsx` → `apps/web/src/fork/bootstrap/`; `apps/server/src/http.ts` → `apps/server/src/fork/http/brandingRoutes.ts`
 - Files:
-  - `apps/server/src/fork/branding.ts`, `apps/server/src/fork/http/brandingRoutes.ts`
-  - `apps/web/src/runtimeBranding.ts`, `apps/web/src/runtimeBranding.test.ts`, `apps/web/src/main.tsx`
-  - `apps/web/src/fork/brandingVitePlugin.ts`
+  - `apps/server/src/http.ts`, `apps/server/src/fork/branding.ts`, `apps/server/src/fork/http/brandingRoutes.ts`, `apps/server/src/fork/http/brandingRoutes.test.ts`
+  - `apps/web/src/branding.ts`, `apps/web/src/runtimeBranding.ts`, `apps/web/src/runtimeBranding.test.ts`, `apps/web/src/main.tsx`
   - `apps/web/public/apple-touch-icon-dev.png`, `apps/web/public/favicon-dev-*.png`, `apps/web/public/favicon-dev.ico`
   - `apps/web/src/overrides.css`, `apps/web/src/index.css`
   - `packages/shared/src/branding.ts`, `packages/shared/src/branding.test.ts`
@@ -142,7 +141,7 @@ For the detailed historical changelog from the initial fork buildout (March 2026
 - Verify: open `t3-dev.claude.do` — confirm red palette, "DEVELOP" badge, dev PWA icons; confirm production has no red indicators
 - Rollback: revert host-aware branding sidecar and dev asset overrides
 - Notes:
-  - 2026-03-26: Consolidated behind shared resolver + server sidecar; replaced brittle class-chain badge selector with `data-slot="fork-stage-badge"`; added Vite dev-server branding adapter.
+  - 2026-03-26: Consolidated behind shared resolver + server sidecar; replaced brittle class-chain badge selector with `data-slot="fork-stage-badge"`.
 
 #### Compact Standalone PWA Open-With Suppression
 

@@ -24,11 +24,42 @@ import { ProjectFaviconResolver } from "./project/Services/ProjectFaviconResolve
 import { ServerAuth } from "./auth/Services/ServerAuth.ts";
 import { respondToAuthError } from "./auth/http.ts";
 import { ServerEnvironment } from "./environment/Services/ServerEnvironment.ts";
+import {
+  tryBuildForkHtmlDocumentResponse,
+  tryHandleForkBrandingRequest,
+} from "./fork/http/brandingRoutes.ts";
 
 const PROJECT_FAVICON_CACHE_CONTROL = "public, max-age=3600";
 const FALLBACK_PROJECT_FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="#6b728080" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" data-fallback="project-favicon"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z"/></svg>`;
 const OTLP_TRACES_PROXY_PATH = "/api/observability/v1/traces";
 const LOOPBACK_HOSTNAMES = new Set(["127.0.0.1", "::1", "localhost"]);
+
+function tryBuildHtmlStaticResponse(input: {
+  readonly data: Uint8Array;
+  readonly request: HttpServerRequest.HttpServerRequest;
+  readonly contentType: string;
+  readonly status: number;
+}): HttpServerResponse.HttpServerResponse {
+  if (input.contentType.includes("text/html")) {
+    return (
+      tryBuildForkHtmlDocumentResponse({
+        html: new TextDecoder().decode(input.data),
+        request: input.request,
+        contentType: input.contentType,
+        statusCode: input.status,
+      }) ??
+      HttpServerResponse.uint8Array(input.data, {
+        status: input.status,
+        contentType: input.contentType,
+      })
+    );
+  }
+
+  return HttpServerResponse.uint8Array(input.data, {
+    status: input.status,
+    contentType: input.contentType,
+  });
+}
 
 export const browserApiCorsLayer = HttpRouter.cors({
   allowedMethods: ["GET", "POST", "OPTIONS"],
@@ -248,6 +279,15 @@ export const staticAndDevRouteLayer = HttpRouter.add(
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const staticRoot = path.resolve(staticDir);
+    const brandingResponse = yield* tryHandleForkBrandingRequest({
+      pathname: url.value.pathname,
+      request,
+      staticRoot,
+    });
+    if (brandingResponse) {
+      return brandingResponse;
+    }
+
     const staticRequestPath = url.value.pathname === "/" ? "/index.html" : url.value.pathname;
     const rawStaticRelativePath = staticRequestPath.replace(/^[/\\]+/, "");
     const hasRawLeadingParentSegment = rawStaticRelativePath.startsWith("..");
@@ -290,9 +330,12 @@ export const staticAndDevRouteLayer = HttpRouter.add(
       if (!indexData) {
         return HttpServerResponse.text("Not Found", { status: 404 });
       }
-      return HttpServerResponse.uint8Array(indexData, {
-        status: 200,
+
+      return tryBuildHtmlStaticResponse({
+        data: indexData,
+        request,
         contentType: "text/html; charset=utf-8",
+        status: 200,
       });
     }
 
@@ -304,9 +347,11 @@ export const staticAndDevRouteLayer = HttpRouter.add(
       return HttpServerResponse.text("Internal Server Error", { status: 500 });
     }
 
-    return HttpServerResponse.uint8Array(data, {
-      status: 200,
+    return tryBuildHtmlStaticResponse({
+      data,
+      request,
       contentType,
+      status: 200,
     });
   }),
 );
