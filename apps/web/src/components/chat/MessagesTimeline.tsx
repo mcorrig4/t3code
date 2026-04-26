@@ -35,6 +35,7 @@ import { ProposedPlanCard } from "./ProposedPlanCard";
 import { ChangedFilesTree } from "./ChangedFilesTree";
 import { DiffStatLabel, hasNonZeroStat } from "./DiffStatLabel";
 import { MessageCopyButton } from "./MessageCopyButton";
+import { AssistantMessageTtsButton } from "~/features/tts/AssistantMessageTtsButton";
 import {
   computeStableMessagesTimelineRows,
   MAX_VISIBLE_WORK_LOG_ENTRIES,
@@ -61,6 +62,12 @@ import {
   textContainsInlineTerminalContextLabels,
 } from "./userMessageTerminalContexts";
 import { formatWorkspaceRelativePath } from "../../filePathDisplay";
+
+const TOUCH_VISIBLE_MESSAGE_ACTIONS_CLASS =
+  "pointer-coarse:opacity-100 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100";
+
+const TOUCH_VISIBLE_ASSISTANT_ACTIONS_CLASS =
+  "pointer-coarse:opacity-100 opacity-0 transition-opacity duration-200 group-hover/assistant:opacity-100";
 
 // ---------------------------------------------------------------------------
 // Context — shared state consumed by every row component via useContext.
@@ -350,7 +357,10 @@ function TimelineRowContent({ row }: { row: TimelineRow }) {
                   />
                 )}
                 <div className="mt-1.5 flex items-center justify-end gap-2">
-                  <div className="flex items-center gap-1.5 opacity-0 transition-opacity duration-200 focus-within:opacity-100 group-hover:opacity-100">
+                  <div
+                    className={cn("flex items-center gap-1.5", TOUCH_VISIBLE_MESSAGE_ACTIONS_CLASS)}
+                    data-slot="user-message-actions"
+                  >
                     {displayedUserMessage.copyText && (
                       <MessageCopyButton text={displayedUserMessage.copyText} />
                     )}
@@ -413,8 +423,14 @@ function TimelineRowContent({ row }: { row: TimelineRow }) {
                   resolvedTheme={ctx.resolvedTheme}
                   onOpenTurnDiff={ctx.onOpenTurnDiff}
                 />
-                <div className="mt-1.5 flex items-center gap-2">
-                  <p className="text-[10px] text-muted-foreground/30">
+                <div
+                  className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-muted-foreground/30"
+                  data-assistant-message-meta
+                >
+                  {!row.message.streaming && row.message.text.trim().length > 0 ? (
+                    <AssistantMessageTtsButton messageId={row.message.id} text={row.message.text} />
+                  ) : null}
+                  <p data-assistant-message-timestamp>
                     {row.message.streaming ? (
                       <LiveMessageMeta
                         createdAt={row.message.createdAt}
@@ -430,7 +446,10 @@ function TimelineRowContent({ row }: { row: TimelineRow }) {
                     )}
                   </p>
                   {assistantCopyState.visible ? (
-                    <div className="flex items-center opacity-0 transition-opacity duration-200  group-hover/assistant:opacity-100">
+                    <div
+                      className={cn("flex items-center", TOUCH_VISIBLE_ASSISTANT_ACTIONS_CLASS)}
+                      data-slot="assistant-message-actions"
+                    >
                       <MessageCopyButton
                         text={assistantCopyState.text ?? ""}
                         size="icon-xs"
