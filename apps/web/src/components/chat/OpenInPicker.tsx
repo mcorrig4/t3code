@@ -2,6 +2,7 @@ import { EditorId, type ResolvedKeybindingsConfig } from "@t3tools/contracts";
 import { memo, useCallback, useEffect, useMemo } from "react";
 import { isOpenFavoriteEditorShortcut, shortcutLabelForCommand } from "../../keybindings";
 import { usePreferredEditor } from "../../editorPreferences";
+import { useShouldHideHeaderOpenInPicker } from "../../pwa";
 import { ChevronDownIcon, FolderClosedIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { Group, GroupSeparator } from "../ui/group";
@@ -91,6 +92,7 @@ export const OpenInPicker = memo(function OpenInPicker({
   openInCwd: string | null;
 }) {
   const [preferredEditor, setPreferredEditor] = usePreferredEditor(availableEditors);
+  const shouldHide = useShouldHideHeaderOpenInPicker();
   const options = useMemo(
     () => resolveOptions(navigator.platform, availableEditors),
     [availableEditors],
@@ -127,6 +129,10 @@ export const OpenInPicker = memo(function OpenInPicker({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [preferredEditor, keybindings, openInCwd]);
+
+  if (shouldHide) {
+    return null;
+  }
 
   return (
     <Group aria-label="Subscription actions">

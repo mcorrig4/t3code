@@ -16,18 +16,16 @@ This fork is organized around a small set of capsules. Each capsule should have:
 
 ### 1. Server HTTP capsule
 
-- Mount seam: [wsServer.ts](/home/claude/code/t3code/apps/server/src/wsServer.ts)
+- Mount seam: [http.ts](/home/claude/code/t3code/apps/server/src/http.ts)
 - Owned subtree:
-  - [apps/server/src/fork/http/index.ts](/home/claude/code/t3code/apps/server/src/fork/http/index.ts)
+  - [apps/server/src/fork/branding.ts](/home/claude/code/t3code/apps/server/src/fork/branding.ts)
   - [apps/server/src/fork/http/brandingRoutes.ts](/home/claude/code/t3code/apps/server/src/fork/http/brandingRoutes.ts)
   - [apps/server/src/fork/http/webPushRoutes.ts](/home/claude/code/t3code/apps/server/src/fork/http/webPushRoutes.ts)
 - Contract:
-  - `ForkHttpContext`
-  - `ForkHttpModule`
-  - `tryHandleForkHttpRequest(...)`
+  - `resolveBrandingForRequest(...)`
+  - `tryHandleForkBrandingRequest(...)`
+  - `tryBuildForkHtmlDocumentResponse(...)`
   - `validateForkHttpAuth(...)`
-  - `ForkHtmlDocumentResponse`
-  - `maybeBuildForkHtmlDocumentResponse(...)`
 
 ### 2. Notification delivery capsule
 
@@ -66,18 +64,21 @@ This fork is organized around a small set of capsules. Each capsule should have:
 
 ### 4. Web bootstrap and branding/PWA capsule
 
-- Mount seam: [main.tsx](/home/claude/code/t3code/apps/web/src/main.tsx)
+- Mount seams:
+  - [main.tsx](/home/claude/code/t3code/apps/web/src/main.tsx)
+  - [apps/web/index.html](/home/claude/code/t3code/apps/web/index.html)
+  - [http.ts](/home/claude/code/t3code/apps/server/src/http.ts) (server-side HTML branding on delivery)
 - Owned subtree:
   - [apps/web/src/fork/bootstrap/index.ts](/home/claude/code/t3code/apps/web/src/fork/bootstrap/index.ts)
   - [apps/web/src/fork/bootstrap/installForkWebShell.ts](/home/claude/code/t3code/apps/web/src/fork/bootstrap/installForkWebShell.ts)
-  - [apps/web/src/fork/bootstrap/brandingBootstrap.ts](/home/claude/code/t3code/apps/web/src/fork/bootstrap/brandingBootstrap.ts)
-  - [apps/web/src/fork/bootstrap/bootShellBootstrap.ts](/home/claude/code/t3code/apps/web/src/fork/bootstrap/bootShellBootstrap.ts)
-  - [apps/web/src/fork/bootstrap/pwaBootstrap.ts](/home/claude/code/t3code/apps/web/src/fork/bootstrap/pwaBootstrap.ts)
-  - [apps/web/src/fork/bootstrap/debugBootstrap.ts](/home/claude/code/t3code/apps/web/src/fork/bootstrap/debugBootstrap.ts)
-  - [apps/web/src/fork/brandingVitePlugin.ts](/home/claude/code/t3code/apps/web/src/fork/brandingVitePlugin.ts)
+  - [apps/web/src/runtimeBranding.ts](/home/claude/code/t3code/apps/web/src/runtimeBranding.ts)
+  - [apps/web/src/pwa.ts](/home/claude/code/t3code/apps/web/src/pwa.ts)
+  - [packages/shared/src/branding.ts](/home/claude/code/t3code/packages/shared/src/branding.ts)
+  - `apps/web/public/manifest.webmanifest`, `apps/web/public/service-worker.js`, `apps/web/public/sw.js`
 - Contract:
   - `installForkWebShell(...)`
-  - `ForkWebBootstrapPlugin`
+  - `applyRuntimeBranding(...)`
+  - `useShouldHideHeaderOpenInPicker()`
 
 ### 5. UI hooks and debug capsule
 

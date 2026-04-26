@@ -3,11 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="application-name" content="T3 Code" />
+    <meta name="apple-mobile-web-app-title" content="T3 Code" />
     <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#161616" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#161616" />
-    <link rel="icon" href="/favicon.ico" sizes="48x48" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link id="app-manifest" rel="manifest" href="/manifest.webmanifest" />
+    <link id="app-favicon-ico" rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link id="app-favicon-32" rel="icon" href="/favicon-32x32.png" sizes="32x32" type="image/png" />
+    <link id="app-favicon-16" rel="icon" href="/favicon-16x16.png" sizes="16x16" type="image/png" />
+    <link id="app-apple-touch-icon" rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <script>
       (() => {
         const LIGHT_BACKGROUND = "#ffffff";
@@ -58,26 +63,74 @@
         color: #f5f5f5;
       }
 
+      body {
+        position: relative;
+      }
+
       #boot-shell {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
         display: flex;
-        min-height: 100%;
         align-items: center;
         justify-content: center;
-        background: inherit;
+        background:
+          radial-gradient(
+            circle at top,
+            var(--t3-loader-ambient-core, rgba(53, 87, 163, 0.3)),
+            transparent 45%
+          ),
+          linear-gradient(
+            180deg,
+            var(--t3-boot-start, #0d1d38) 0%,
+            var(--t3-boot-mid, #07101f) 58%,
+            var(--t3-boot-end, #050c17) 100%
+          );
+        opacity: 1;
+        transition:
+          opacity 180ms ease,
+          visibility 180ms ease;
+      }
+
+      #boot-shell[data-state="dismissed"] {
+        opacity: 0;
+        visibility: hidden;
       }
 
       #boot-shell-card {
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        width: 96px;
-        height: 96px;
+        gap: 18px;
+        min-width: 160px;
+        min-height: 160px;
+        padding: 28px 32px;
+        border: 1px solid color-mix(in srgb, var(--t3-loader-outline, #2563eb) 32%, white 16%);
+        border-radius: 32px;
+        background: linear-gradient(
+          180deg,
+          color-mix(in srgb, var(--t3-boot-mid, #07101f) 84%, white 8%) 0%,
+          color-mix(in srgb, var(--t3-boot-end, #050c17) 88%, black 12%) 100%
+        );
+        box-shadow:
+          0 22px 80px rgba(0, 0, 0, 0.38),
+          inset 0 1px 0 color-mix(in srgb, var(--t3-loader-core-soft, #dbeafe) 12%, transparent);
+        backdrop-filter: blur(18px);
       }
 
       #boot-shell-logo {
-        width: 64px;
-        height: 64px;
+        width: 72px;
+        height: 72px;
         object-fit: contain;
+      }
+
+      #boot-shell-wordmark {
+        color: var(--t3-loader-core-strong, rgba(247, 250, 255, 0.92));
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.34em;
+        text-transform: uppercase;
       }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -86,16 +139,17 @@
       href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300..800;1,9..40,300..800&display=swap"
       rel="stylesheet"
     />
+    <!-- app-branding-vars -->
     <title>T3 Code (Alpha)</title>
   </head>
   <body>
-    <div id="root">
-      <div id="boot-shell">
-        <div id="boot-shell-card" aria-label="T3 Code splash screen">
-          <img id="boot-shell-logo" src="/apple-touch-icon.png" alt="T3 Code" />
-        </div>
+    <div id="boot-shell" aria-hidden="true">
+      <div id="boot-shell-card" aria-label="T3 Code splash screen">
+        <img id="boot-shell-logo" src="/apple-touch-icon.png" alt="T3 Code" />
+        <div id="boot-shell-wordmark">T3 Code</div>
       </div>
     </div>
+    <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
