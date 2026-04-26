@@ -54,6 +54,12 @@ import {
   resolveInitialServerAuthGateState,
   updatePrimaryEnvironmentDescriptor,
 } from "../environments/primary";
+import { ForkRootSidecars } from "../fork/bootstrap";
+import {
+  ensureCrashDebugSession,
+  logCrashBreadcrumb,
+  setCrashSessionDisposition,
+} from "../debug/crashDebug";
 import { useNotificationNavigation } from "../notifications/useNotificationNavigation";
 
 export const Route = createRootRouteWithContext<{
@@ -81,6 +87,32 @@ function RootRouteView() {
   const { authGateState } = Route.useRouteContext();
 
   useEffect(() => {
+    ensureCrashDebugSession();
+  }, []);
+
+  useEffect(() => {
+    const onPageShow = () => {
+      ensureCrashDebugSession();
+    };
+    const onPageHide = () => {
+      setCrashSessionDisposition("clean-exit");
+    };
+
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("pagehide", onPageHide);
+    };
+  }, []);
+
+  useEffect(() => {
+    logCrashBreadcrumb({
+      level: "info",
+      stage: "route-change",
+      message: `Navigated to ${pathname}`,
+      route: pathname,
+    });
     const frame = window.requestAnimationFrame(() => {
       syncBrowserChromeTheme();
     });
@@ -103,6 +135,7 @@ function RootRouteView() {
         <ServerStateBootstrap />
         <EnvironmentConnectionManagerBootstrap />
         <EventRouter />
+        <ForkRootSidecars />
         <WebSocketConnectionCoordinator />
         <SlowRpcAckToastCoordinator />
         <WebSocketConnectionSurface>
@@ -118,6 +151,18 @@ function RootRouteView() {
 }
 
 function RootRouteErrorView({ error, reset }: ErrorComponentProps) {
+  useEffect(() => {
+    ensureCrashDebugSession();
+    logCrashBreadcrumb({
+      level: "error",
+      stage: "root-route-error",
+      message: errorMessage(error),
+      detail: errorDetails(error),
+      route: window.location.pathname,
+    });
+    setCrashSessionDisposition("root-error");
+  }, [error]);
+
   const message = errorMessage(error);
   const details = errorDetails(error);
 

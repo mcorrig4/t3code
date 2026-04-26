@@ -26,6 +26,9 @@ import {
 import { ensureLocalApi } from "~/localApi";
 import { collectActiveTerminalThreadIds } from "~/lib/terminalStateCleanup";
 import { deriveOrchestrationBatchEffects } from "~/orchestrationEventEffects";
+import { toastManager } from "~/components/ui/toast";
+import { logCrashBreadcrumbLazy } from "~/debug/crashDebug";
+import { describePendingUserInputFailure, logForkDebugEvent } from "~/fork/bootstrap/rootDebug";
 import { projectQueryKeys } from "~/lib/projectReactQuery";
 import { providerQueryKeys } from "~/lib/providerReactQuery";
 import { getPrimaryKnownEnvironment } from "../primary";
@@ -641,6 +644,33 @@ function applyRecoveredEventBatch(
   if (batchEffects.needsProviderInvalidation) {
     needsProviderInvalidation = true;
     void activeService?.queryInvalidationThrottler.maybeExecute();
+  }
+
+  for (const event of events) {
+    logForkDebugEvent(event);
+    logCrashBreadcrumbLazy(() => ({
+      level: "info",
+      stage: "domain-event",
+      message: `Observed ${event.type}.`,
+      route: window.location.pathname,
+      detail: JSON.stringify({
+        sequence: event.sequence,
+        ...(typeof (event.payload as { threadId?: unknown }).threadId === "string"
+          ? { threadId: (event.payload as { threadId: string }).threadId }
+          : {}),
+      }),
+    }));
+
+    if (
+      event.type === "thread.activity-appended" &&
+      event.payload.activity.kind === "provider.user-input.respond.failed"
+    ) {
+      toastManager.add({
+        type: "warning",
+        title: "Question expired",
+        description: describePendingUserInputFailure(event.payload.activity),
+      });
+    }
   }
 
   useStore.getState().applyOrchestrationEvents(uiEvents, environmentId);

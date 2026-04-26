@@ -1,5 +1,11 @@
 import { Button } from "../components/ui/button";
 import { Switch } from "../components/ui/switch";
+import {
+  clearUserInputDebugEntries,
+  setUserInputDebugCollapsed,
+  setUserInputDebugEnabled,
+  useUserInputDebugStore,
+} from "../debug/userInputDebug";
 import { useForkSettings } from "../fork/settings";
 import { usePushNotifications } from "../notifications/usePushNotifications";
 import {
@@ -11,6 +17,8 @@ import {
 export function ForkSettingsSection() {
   const { settings, defaults, updateForkSettings } = useForkSettings();
   const pushNotifications = usePushNotifications();
+  const userInputDebugEnabled = useUserInputDebugStore((store) => store.enabled);
+  const userInputDebugEntryCount = useUserInputDebugStore((store) => store.entries.length);
   const notificationsStatus = !pushNotifications.supported
     ? "This browser does not support PWA push notifications."
     : !pushNotifications.serverEnabled
@@ -110,6 +118,42 @@ export function ForkSettingsSection() {
             }
             aria-label="Suppress Codex native notifications"
           />
+        }
+      />
+
+      <SettingsRow
+        title="Diagnostics"
+        description="Open the fork-only debug sidecar for user-input breadcrumbs and crash diagnostics without editing the URL."
+        status={
+          userInputDebugEnabled
+            ? `Debug panel enabled with ${userInputDebugEntryCount} captured breadcrumb${userInputDebugEntryCount === 1 ? "" : "s"}.`
+            : "Debug panel currently hidden."
+        }
+        control={
+          <div className="flex w-full flex-wrap justify-end gap-2 sm:w-auto">
+            <Button
+              size="xs"
+              variant="outline"
+              aria-label="Open diagnostics panel"
+              onClick={() => {
+                setUserInputDebugEnabled(true);
+                setUserInputDebugCollapsed(false);
+              }}
+            >
+              {userInputDebugEnabled ? "Show panel" : "Open panel"}
+            </Button>
+            <Button
+              size="xs"
+              variant="ghost"
+              aria-label="Clear diagnostics breadcrumbs"
+              disabled={!userInputDebugEnabled && userInputDebugEntryCount === 0}
+              onClick={() => {
+                clearUserInputDebugEntries();
+              }}
+            >
+              Clear
+            </Button>
+          </div>
         }
       />
     </SettingsSection>
