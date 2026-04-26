@@ -1,7 +1,7 @@
 import { EnvironmentId, MessageId } from "@t3tools/contracts";
 import { createRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeAll, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LegendListRef } from "@legendapp/list/react";
 
 vi.mock("@legendapp/list/react", async () => {
@@ -63,6 +63,9 @@ beforeAll(() => {
     },
     cancelAnimationFrame: () => {},
     desktopBridge: undefined,
+    location: {
+      hostname: "localhost",
+    },
   });
   vi.stubGlobal("document", {
     documentElement: {
@@ -70,6 +73,11 @@ beforeAll(() => {
       offsetHeight: 0,
     },
   });
+});
+
+beforeEach(() => {
+  Reflect.deleteProperty(globalThis, "speechSynthesis");
+  Reflect.deleteProperty(globalThis, "SpeechSynthesisUtterance");
 });
 
 const ACTIVE_THREAD_ENVIRONMENT_ID = EnvironmentId.make("environment-local");
@@ -185,5 +193,83 @@ describe("MessagesTimeline", () => {
 
     expect(markup).toContain("t3code/apps/web/src/session-logic.ts");
     expect(markup).not.toContain("C:/Users/mike/dev-stuff/t3code/apps/web/src/session-logic.ts");
+  });
+
+  it("renders native TTS controls and touch-visible action hooks for completed assistant messages", async () => {
+    vi.stubGlobal("speechSynthesis", {
+      cancel: () => {},
+      getVoices: () => [],
+      speak: () => {},
+    } satisfies Partial<SpeechSynthesis>);
+    vi.stubGlobal(
+      "SpeechSynthesisUtterance",
+      class MockSpeechSynthesisUtterance {
+        readonly text: string;
+        lang = "";
+        rate = 1;
+        voice: SpeechSynthesisVoice | null = null;
+
+        constructor(text: string) {
+          this.text = text;
+        }
+      } as unknown as typeof SpeechSynthesisUtterance,
+    );
+
+    const { MessagesTimeline } = await import("./MessagesTimeline");
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        timelineEntries={[
+          {
+            id: "assistant-entry",
+            kind: "message",
+            createdAt: "2026-04-13T12:00:10.000Z",
+            message: {
+              id: MessageId.make("assistant-1"),
+              role: "assistant",
+              text: "Read this response aloud.",
+              turnId: null,
+              createdAt: "2026-04-13T12:00:10.000Z",
+              completedAt: "2026-04-13T12:00:12.000Z",
+              streaming: false,
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain('data-slot="assistant-message-tts"');
+    expect(markup).toContain("Play message");
+    expect(markup).toContain('data-slot="assistant-message-actions"');
+    expect(markup).toContain("pointer-coarse:opacity-100");
+  });
+
+  it("renders touch-visible user message actions when copy or revert is available", async () => {
+    const { MessagesTimeline } = await import("./MessagesTimeline");
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        {...buildProps()}
+        revertTurnCountByUserMessageId={new Map([[MessageId.make("user-1"), 1]])}
+        timelineEntries={[
+          {
+            id: "user-entry",
+            kind: "message",
+            createdAt: "2026-04-13T12:00:10.000Z",
+            message: {
+              id: MessageId.make("user-1"),
+              role: "user",
+              text: "Please undo that change.",
+              turnId: null,
+              createdAt: "2026-04-13T12:00:10.000Z",
+              streaming: false,
+            },
+          },
+        ]}
+      />,
+    );
+
+    expect(markup).toContain('data-slot="user-message-actions"');
+    expect(markup).toContain("pointer-coarse:opacity-100");
+    expect(markup).toContain("Revert to this message");
   });
 });

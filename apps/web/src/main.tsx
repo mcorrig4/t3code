@@ -5,6 +5,7 @@ import { createHashHistory, createBrowserHistory } from "@tanstack/react-router"
 
 import "@xterm/xterm/css/xterm.css";
 import "./index.css";
+import "./overrides.css";
 
 import { isElectron } from "./env";
 import { installForkWebShell } from "./fork/bootstrap";
