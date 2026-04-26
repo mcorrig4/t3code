@@ -242,6 +242,24 @@ For the detailed historical changelog from the initial fork buildout (March 2026
 - Verify: create a thread awaiting structured user input — sidebar pill reads "Awaiting Input" with red text/dot styling; pending approvals remain amber
 - Rollback: revert the awaiting-input `colorClass` and `dotClass` in `resolveThreadStatusPill`
 
+#### Fork Diagnostics Sidecar
+
+- Status: active | Added: 2026-03-26 | Updated: 2026-04-26
+- Upstream impact: low
+- Why: Fork-only debugging for user-input callbacks and client-side failures should be available behind a dev/local sidecar without editing the URL manually or widening upstream runtime codepaths.
+- Seam: `apps/web/src/routes/__root.tsx`, `apps/web/src/fork/bootstrap/ForkRootSidecars.tsx`, `apps/web/src/settings/ForkSettingsSection.tsx`
+- Files:
+  - `apps/web/src/debug/userInputDebug.ts`, `apps/web/src/debug/crashDebug.ts`, `apps/web/src/debug/crashDebug.test.ts`, `apps/web/src/debug/UserInputDebugSidecar.tsx`
+  - `apps/web/src/components/debug/UserInputDebugPanel.tsx`
+  - `apps/web/src/fork/bootstrap/ForkRootSidecars.tsx`, `apps/web/src/fork/bootstrap/rootDebug.ts`, `apps/web/src/fork/bootstrap/rootDebug.test.ts`, `apps/web/src/fork/bootstrap/index.ts`
+  - `apps/web/src/routes/__root.tsx`, `apps/web/src/environments/runtime/service.ts`
+  - `apps/web/src/settings/ForkSettingsSection.tsx`, `apps/web/src/settings/ForkSettingsSection.browser.tsx`
+- Upstream replacement trigger: upstream adds first-class client diagnostics for user-input callback failures and crash breadcrumbs
+- Verify: open Settings and use `Open panel`; load with `?debugUserInput=1` on dev/local and confirm the panel appears; trigger a `provider.user-input.respond.failed` activity and confirm the warning toast plus debug breadcrumb capture
+- Rollback: remove `ForkRootSidecars` mount and diagnostics row; delete `apps/web/src/debug/*` if removing the sidecar completely
+- Notes:
+  - 2026-04-26: This intentionally keeps stale pending-request cleanup out of the fork. The retained behavior is the floating diagnostics sidecar, root error/crash breadcrumbs, and user-input event logging only.
+
 #### Native Assistant Message TTS
 
 - Status: active | Added: 2026-03-16 | Updated: 2026-03-23
