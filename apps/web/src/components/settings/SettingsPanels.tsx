@@ -36,6 +36,7 @@ import { isElectron } from "../../env";
 import { useTheme } from "../../hooks/useTheme";
 import { useSettings, useUpdateSettings } from "../../hooks/useSettings";
 import { useThreadActions } from "../../hooks/useThreadActions";
+import { useForkSettingsResetPlan } from "../../fork/settings";
 import {
   setDesktopUpdateStateQueryData,
   useDesktopUpdateState,
@@ -71,6 +72,7 @@ import {
   useRelativeTimeTick,
 } from "./settingsLayout";
 import { ProjectFavicon } from "../ProjectFavicon";
+import { ForkSettingsSection } from "../../settings/ForkSettingsSection";
 import {
   useServerAvailableEditors,
   useServerKeybindingsConfigPath,
@@ -78,6 +80,8 @@ import {
   useServerProviders,
 } from "../../rpc/serverState";
 import { formatProviderKindLabel } from "../../providerModels";
+import { buildUpstreamSettingsResetPlan } from "../../settings/resetPlan";
+import { usePushNotifications } from "../../notifications/usePushNotifications";
 
 const THEME_OPTIONS = [
   {
@@ -452,64 +456,23 @@ export function useSettingsRestore(onRestored?: () => void) {
   const { theme, setTheme } = useTheme();
   const settings = useSettings();
   const { resetSettings } = useUpdateSettings();
-
-  const isGitWritingModelDirty = !Equal.equals(
-    settings.textGenerationModelSelection ?? null,
-    DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection ?? null,
+  const pushNotifications = usePushNotifications();
+  const upstreamResetPlan = useMemo(
+    () =>
+      buildUpstreamSettingsResetPlan({
+        theme,
+        setTheme,
+        settings,
+        defaults: DEFAULT_UNIFIED_SETTINGS,
+        resetSettings,
+      }),
+    [resetSettings, setTheme, settings, theme],
   );
-  const areProviderSettingsDirty = PROVIDER_SETTINGS.some((providerSettings) => {
-    const currentSettings = settings.providers[providerSettings.provider];
-    const defaultSettings = DEFAULT_UNIFIED_SETTINGS.providers[providerSettings.provider];
-    return !Equal.equals(currentSettings, defaultSettings);
-  });
-
-  const changedSettingLabels = useMemo(
-    () => [
-      ...(theme !== "system" ? ["Theme"] : []),
-      ...(settings.timestampFormat !== DEFAULT_UNIFIED_SETTINGS.timestampFormat
-        ? ["Time format"]
-        : []),
-      ...(settings.diffWordWrap !== DEFAULT_UNIFIED_SETTINGS.diffWordWrap
-        ? ["Diff line wrapping"]
-        : []),
-      ...(settings.autoOpenPlanSidebar !== DEFAULT_UNIFIED_SETTINGS.autoOpenPlanSidebar
-        ? ["Task sidebar"]
-        : []),
-      ...(settings.enableAssistantStreaming !== DEFAULT_UNIFIED_SETTINGS.enableAssistantStreaming
-        ? ["Assistant output"]
-        : []),
-      ...(settings.defaultThreadEnvMode !== DEFAULT_UNIFIED_SETTINGS.defaultThreadEnvMode
-        ? ["New thread mode"]
-        : []),
-      ...(settings.addProjectBaseDirectory !== DEFAULT_UNIFIED_SETTINGS.addProjectBaseDirectory
-        ? ["Add project base directory"]
-        : []),
-      ...(settings.confirmThreadArchive !== DEFAULT_UNIFIED_SETTINGS.confirmThreadArchive
-        ? ["Archive confirmation"]
-        : []),
-      ...(settings.confirmThreadDelete !== DEFAULT_UNIFIED_SETTINGS.confirmThreadDelete
-        ? ["Delete confirmation"]
-        : []),
-      ...(isGitWritingModelDirty ? ["Git writing model"] : []),
-      ...(areProviderSettingsDirty ? ["Providers"] : []),
-    ],
-    [
-      areProviderSettingsDirty,
-      isGitWritingModelDirty,
-      settings.autoOpenPlanSidebar,
-      settings.confirmThreadArchive,
-      settings.confirmThreadDelete,
-      settings.addProjectBaseDirectory,
-      settings.defaultThreadEnvMode,
-      settings.diffWordWrap,
-      settings.enableAssistantStreaming,
-      settings.timestampFormat,
-      theme,
-    ],
-  );
+  const { resetPlan } = useForkSettingsResetPlan(upstreamResetPlan);
+  const changedSettingLabels = resetPlan.allDirtyLabels;
 
   const restoreDefaults = useCallback(async () => {
-    if (changedSettingLabels.length === 0) return;
+    if (!resetPlan.hasChanges) return;
     const api = readLocalApi();
     const confirmed = await (api ?? ensureLocalApi()).dialogs.confirm(
       ["Restore default settings?", `This will reset: ${changedSettingLabels.join(", ")}.`].join(
@@ -518,10 +481,18 @@ export function useSettingsRestore(onRestored?: () => void) {
     );
     if (!confirmed) return;
 
-    setTheme("system");
-    resetSettings();
+    if (pushNotifications.locallyEnabled) {
+      await pushNotifications.disable();
+    }
+    resetPlan.resetPersistentSettings();
     onRestored?.();
-  }, [changedSettingLabels, onRestored, resetSettings, setTheme]);
+  }, [
+    changedSettingLabels,
+    onRestored,
+    pushNotifications,
+    resetPlan,
+    pushNotifications.locallyEnabled,
+  ]);
 
   return {
     changedSettingLabels,
@@ -1666,6 +1637,8 @@ export function GeneralSettingsPanel() {
           }
         />
       </SettingsSection>
+
+      <ForkSettingsSection />
 
       <SettingsSection title="About">
         {isElectron ? (

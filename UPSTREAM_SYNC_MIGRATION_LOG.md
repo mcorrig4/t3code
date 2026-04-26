@@ -196,7 +196,7 @@ The phase wrappers exist for continuity; the capsule seams are the long-term tar
 - Run existing component browser tests:
   - `bun run --cwd apps/web test:browser`
 - Run fork browser coverage:
-  - `bun run --cwd apps/web test:browser:fork`
+  - `bun run --cwd apps/web test:browser --run src/settings/ForkSettingsSection.browser.tsx src/components/settings/SettingsPanels.browser.tsx`
 - Run the current phase baseline smoke:
   - `bun run sync:phase0:smoke`
 - Run the deterministic smoke layer:

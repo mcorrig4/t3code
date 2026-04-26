@@ -16,7 +16,9 @@ This fork is organized around a small set of capsules. Each capsule should have:
 
 ### 1. Server HTTP capsule
 
-- Mount seam: [http.ts](/home/claude/code/t3code/apps/server/src/http.ts)
+- Mount seams:
+  - [http.ts](/home/claude/code/t3code/apps/server/src/http.ts)
+  - [server.ts](/home/claude/code/t3code/apps/server/src/server.ts) (fork route/layer registration)
 - Owned subtree:
   - [apps/server/src/fork/branding.ts](/home/claude/code/t3code/apps/server/src/fork/branding.ts)
   - [apps/server/src/fork/http/brandingRoutes.ts](/home/claude/code/t3code/apps/server/src/fork/http/brandingRoutes.ts)
@@ -41,7 +43,7 @@ This fork is organized around a small set of capsules. Each capsule should have:
 
 - Mount seams:
   - [ForkSettingsSection.tsx](/home/claude/code/t3code/apps/web/src/settings/ForkSettingsSection.tsx)
-  - [routes/\_chat.settings.tsx](/home/claude/code/t3code/apps/web/src/routes/_chat.settings.tsx)
+  - [components/settings/SettingsPanels.tsx](/home/claude/code/t3code/apps/web/src/components/settings/SettingsPanels.tsx)
   - [components/ChatView.tsx](/home/claude/code/t3code/apps/web/src/components/ChatView.tsx) (suppressCodexAppServerNotifications consumption)
 - Owned subtree:
   - [apps/web/src/fork/settings/index.ts](/home/claude/code/t3code/apps/web/src/fork/settings/index.ts)

@@ -139,7 +139,7 @@ bun run --cwd apps/web sync:phase9:smoke    # settings sidecar
 bun run --cwd apps/web sync:acceptance:check
 
 # Fork browser specs
-bun run --cwd apps/web test:browser:fork
+bun run --cwd apps/web test:browser --run src/settings/ForkSettingsSection.browser.tsx src/components/settings/SettingsPanels.browser.tsx
 ```
 
 Full verification matrix: [docs/fork-acceptance-matrix.md](/home/claude/code/t3code/docs/fork-acceptance-matrix.md)

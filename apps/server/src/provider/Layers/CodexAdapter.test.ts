@@ -259,6 +259,30 @@ validationLayer("CodexAdapterLive validation", (it) => {
       });
     }),
   );
+
+  it.effect("maps fork-owned Codex session overrides into app-server config overrides", () =>
+    Effect.gen(function* () {
+      validationRuntimeFactory.factory.mockClear();
+      const adapter = yield* CodexAdapter;
+
+      yield* adapter.startSession({
+        provider: "codex",
+        threadId: asThreadId("thread-override"),
+        runtimeMode: "full-access",
+        codexSessionOverrides: {
+          suppressNativeNotifications: true,
+        },
+      });
+
+      assert.deepStrictEqual(validationRuntimeFactory.factory.mock.calls[0]?.[0], {
+        binaryPath: "codex",
+        configOverrides: ["notify=[]"],
+        cwd: process.cwd(),
+        threadId: asThreadId("thread-override"),
+        runtimeMode: "full-access",
+      });
+    }),
+  );
 });
 
 const sessionRuntimeFactory = makeRuntimeFactory();

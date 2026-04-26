@@ -6,7 +6,7 @@
  *
  * @module ServerConfig
  */
-import { Effect, FileSystem, Layer, LogLevel, Path, Schema, Context } from "effect";
+import { Context, Effect, FileSystem, Layer, LogLevel, Path, Schema } from "effect";
 
 export const DEFAULT_PORT = 3773;
 
@@ -65,6 +65,9 @@ export interface ServerConfigShape extends ServerDerivedPaths {
   readonly desktopBootstrapToken: string | undefined;
   readonly autoBootstrapProjectFromCwd: boolean;
   readonly logWebSocketEvents: boolean;
+  readonly webPushVapidPublicKey?: string | undefined;
+  readonly webPushVapidPrivateKey?: string | undefined;
+  readonly webPushSubject?: string | undefined;
 }
 
 export const deriveServerPaths = Effect.fn(function* (
@@ -165,6 +168,9 @@ export class ServerConfig extends Context.Service<ServerConfig, ServerConfigShap
           devUrl,
           noBrowser: false,
           startupPresentation: "browser",
+          webPushVapidPublicKey: undefined,
+          webPushVapidPrivateKey: undefined,
+          webPushSubject: undefined,
         } satisfies ServerConfigShape;
       }),
     );

@@ -1,6 +1,7 @@
 import {
   type ChatAttachment,
   CommandId,
+  type CodexSessionOverrides,
   EventId,
   type ModelSelection,
   type OrchestrationEvent,
@@ -262,6 +263,7 @@ const make = Effect.gen(function* () {
     createdAt: string,
     options?: {
       readonly modelSelection?: ModelSelection;
+      readonly codexSessionOverrides?: CodexSessionOverrides;
     },
   ) {
     const readModel = yield* orchestrationEngine.getReadModel();
@@ -309,6 +311,9 @@ const make = Effect.gen(function* () {
         ...(preferredProvider ? { provider: preferredProvider } : {}),
         ...(effectiveCwd ? { cwd: effectiveCwd } : {}),
         modelSelection: desiredModelSelection,
+        ...(options?.codexSessionOverrides !== undefined
+          ? { codexSessionOverrides: options.codexSessionOverrides }
+          : {}),
         ...(input?.resumeCursor !== undefined ? { resumeCursor: input.resumeCursor } : {}),
         runtimeMode: desiredRuntimeMode,
       });
@@ -403,6 +408,7 @@ const make = Effect.gen(function* () {
     readonly attachments?: ReadonlyArray<ChatAttachment>;
     readonly modelSelection?: ModelSelection;
     readonly interactionMode?: "default" | "plan";
+    readonly codexSessionOverrides?: CodexSessionOverrides;
     readonly createdAt: string;
   }) {
     const thread = yield* resolveThread(input.threadId);
@@ -411,11 +417,12 @@ const make = Effect.gen(function* () {
         new Error(`Thread '${input.threadId}' was not found in read model.`),
       );
     }
-    yield* ensureSessionForThread(
-      input.threadId,
-      input.createdAt,
-      input.modelSelection !== undefined ? { modelSelection: input.modelSelection } : {},
-    );
+    yield* ensureSessionForThread(input.threadId, input.createdAt, {
+      ...(input.modelSelection !== undefined ? { modelSelection: input.modelSelection } : {}),
+      ...(input.codexSessionOverrides !== undefined
+        ? { codexSessionOverrides: input.codexSessionOverrides }
+        : {}),
+    });
     if (input.modelSelection !== undefined) {
       threadModelSelections.set(input.threadId, input.modelSelection);
     }
@@ -651,6 +658,9 @@ const make = Effect.gen(function* () {
         ? { modelSelection: event.payload.modelSelection }
         : {}),
       interactionMode: event.payload.interactionMode,
+      ...(event.payload.codexSessionOverrides !== undefined
+        ? { codexSessionOverrides: event.payload.codexSessionOverrides }
+        : {}),
       createdAt: event.payload.createdAt,
     }).pipe(
       Effect.map(Option.some),

@@ -54,6 +54,7 @@ import {
   resolveInitialServerAuthGateState,
   updatePrimaryEnvironmentDescriptor,
 } from "../environments/primary";
+import { useNotificationNavigation } from "../notifications/useNotificationNavigation";
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -75,6 +76,7 @@ export const Route = createRootRouteWithContext<{
 });
 
 function RootRouteView() {
+  useNotificationNavigation();
   const pathname = useLocation({ select: (location) => location.pathname });
   const { authGateState } = Route.useRouteContext();
 
