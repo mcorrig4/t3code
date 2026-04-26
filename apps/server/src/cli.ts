@@ -80,6 +80,9 @@ const BootstrapEnvelopeSchema = Schema.Struct({
   logWebSocketEvents: Schema.optional(Schema.Boolean),
   otlpTracesUrl: Schema.optional(Schema.String),
   otlpMetricsUrl: Schema.optional(Schema.String),
+  webPushVapidPublicKey: Schema.optional(Schema.String),
+  webPushVapidPrivateKey: Schema.optional(Schema.String),
+  webPushSubject: Schema.optional(Schema.String),
 });
 
 const modeFlag = Flag.choice("mode", RuntimeMode.literals).pipe(
@@ -171,6 +174,18 @@ const EnvServerConfig = Config.all({
     Config.map(Option.getOrUndefined),
   ),
   logWebSocketEvents: Config.boolean("T3CODE_LOG_WS_EVENTS").pipe(
+    Config.option,
+    Config.map(Option.getOrUndefined),
+  ),
+  webPushVapidPublicKey: Config.string("T3CODE_WEB_PUSH_VAPID_PUBLIC_KEY").pipe(
+    Config.option,
+    Config.map(Option.getOrUndefined),
+  ),
+  webPushVapidPrivateKey: Config.string("T3CODE_WEB_PUSH_VAPID_PRIVATE_KEY").pipe(
+    Config.option,
+    Config.map(Option.getOrUndefined),
+  ),
+  webPushSubject: Config.string("T3CODE_WEB_PUSH_SUBJECT").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
@@ -323,6 +338,24 @@ export const resolveServerConfig = (
       ),
       () => Boolean(devUrl),
     );
+    const webPushVapidPublicKey = Option.getOrUndefined(
+      resolveOptionPrecedence(
+        Option.fromUndefinedOr(env.webPushVapidPublicKey),
+        Option.fromUndefinedOr(bootstrap?.webPushVapidPublicKey),
+      ),
+    );
+    const webPushVapidPrivateKey = Option.getOrUndefined(
+      resolveOptionPrecedence(
+        Option.fromUndefinedOr(env.webPushVapidPrivateKey),
+        Option.fromUndefinedOr(bootstrap?.webPushVapidPrivateKey),
+      ),
+    );
+    const webPushSubject = Option.getOrUndefined(
+      resolveOptionPrecedence(
+        Option.fromUndefinedOr(env.webPushSubject),
+        Option.fromUndefinedOr(bootstrap?.webPushSubject),
+      ),
+    );
     const staticDir = devUrl ? undefined : yield* resolveStaticDir();
     const host = Option.getOrElse(
       resolveOptionPrecedence(
@@ -365,6 +398,9 @@ export const resolveServerConfig = (
       desktopBootstrapToken,
       autoBootstrapProjectFromCwd,
       logWebSocketEvents,
+      webPushVapidPublicKey,
+      webPushVapidPrivateKey,
+      webPushSubject,
     };
 
     return config;

@@ -42,6 +42,7 @@ import {
 import { CodexAdapter, type CodexAdapterShape } from "../Services/CodexAdapter.ts";
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
+import { resolveCodexAppServerConfigOverrides } from "../../fork/provider/codexAppServerOverrides.ts";
 import { ServerSettingsService } from "../../serverSettings.ts";
 import {
   CodexResumeCursorSchema,
@@ -1370,6 +1371,11 @@ const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function* (
           cwd: input.cwd ?? process.cwd(),
           binaryPath: codexSettings.binaryPath,
           ...(codexSettings.homePath ? { homePath: codexSettings.homePath } : {}),
+          ...(input.codexSessionOverrides !== undefined
+            ? {
+                configOverrides: resolveCodexAppServerConfigOverrides(input.codexSessionOverrides),
+              }
+            : {}),
           ...(Schema.is(CodexResumeCursorSchema)(input.resumeCursor)
             ? { resumeCursor: input.resumeCursor }
             : {}),

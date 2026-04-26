@@ -32,11 +32,27 @@ describe("ProviderSessionStartInput", () => {
     expect(parsed.runtimeMode).toBe("full-access");
     expect(parsed.modelSelection?.provider).toBe("codex");
     expect(parsed.modelSelection?.model).toBe("gpt-5.3-codex");
+    expect(parsed.codexSessionOverrides).toBeUndefined();
     if (parsed.modelSelection?.provider !== "codex") {
       throw new Error("Expected codex modelSelection");
     }
     expect(getOptionValue(parsed.modelSelection.options, "reasoningEffort")).toBe("high");
     expect(getOptionValue(parsed.modelSelection.options, "fastMode")).toBe(true);
+  });
+
+  it("accepts fork-owned Codex session overrides", () => {
+    const parsed = decodeProviderSessionStartInput({
+      threadId: "thread-1",
+      provider: "codex",
+      runtimeMode: "full-access",
+      codexSessionOverrides: {
+        suppressNativeNotifications: true,
+      },
+    });
+
+    expect(parsed.codexSessionOverrides).toEqual({
+      suppressNativeNotifications: true,
+    });
   });
 
   it("rejects payloads without runtime mode", () => {

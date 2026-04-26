@@ -453,6 +453,21 @@ describe("GeneralSettingsPanel observability", () => {
       .toBeInTheDocument();
   });
 
+  it("renders the fork settings section inside general settings", async () => {
+    setServerConfigSnapshot(createBaseServerConfig());
+
+    mounted = await render(
+      <AppAtomRegistryProvider>
+        <GeneralSettingsPanel />
+      </AppAtomRegistryProvider>,
+    );
+
+    await expect.element(page.getByRole("heading", { name: "Fork extensions" })).toBeVisible();
+    await expect
+      .element(page.getByLabelText("Suppress Codex native notifications"))
+      .toBeInTheDocument();
+  });
+
   it("creates and shows a pairing link when network access is enabled", async () => {
     window.desktopBridge = createDesktopBridgeStub({
       serverExposureState: {
@@ -717,5 +732,95 @@ describe("GeneralSettingsPanel observability", () => {
     await expect.element(page.getByPlaceholder("http://127.0.0.1:4096")).toBeInTheDocument();
     await expect.element(page.getByText("OpenCode server password")).toBeInTheDocument();
     await expect.element(page.getByPlaceholder("Server password")).toBeInTheDocument();
+  });
+
+  it("enables web push notifications from fork settings", async () => {
+    let permission: NotificationPermission = "default";
+    const subscribe = vi.fn().mockResolvedValue({
+      endpoint: "https://push.example/subscription",
+      toJSON: () => ({
+        endpoint: "https://push.example/subscription",
+        keys: {
+          p256dh: "p256dh-key",
+          auth: "auth-key",
+        },
+      }),
+      unsubscribe: vi.fn().mockResolvedValue(true),
+    });
+
+    vi.stubGlobal("Notification", {
+      get permission() {
+        return permission;
+      },
+      requestPermission: vi.fn().mockImplementation(async () => {
+        permission = "granted";
+        return permission;
+      }),
+    });
+
+    Object.defineProperty(window, "isSecureContext", {
+      configurable: true,
+      value: true,
+    });
+    vi.stubGlobal("PushManager", class PushManager {});
+
+    Object.defineProperty(navigator, "serviceWorker", {
+      configurable: true,
+      value: {
+        ready: Promise.resolve(),
+        register: vi.fn().mockResolvedValue({
+          pushManager: {
+            getSubscription: vi.fn().mockResolvedValue(null),
+            subscribe,
+          },
+        }),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+      },
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>().mockImplementation(async (input, init) => {
+        const url = String(input);
+        const method = init?.method ?? "GET";
+
+        if (url.endsWith("/api/web-push/config") && method === "GET") {
+          return new Response(
+            JSON.stringify({
+              enabled: true,
+              publicKey: "BKxjK9xWq2H7WcJjDoD1s9gH8uWmT1mR4dO7x9YhZ0c",
+              serviceWorkerPath: "/sw.js",
+              manifestPath: "/manifest.webmanifest",
+            }),
+            {
+              status: 200,
+              headers: { "content-type": "application/json" },
+            },
+          );
+        }
+
+        if (url.endsWith("/api/web-push/subscription") && method === "PUT") {
+          return new Response(null, { status: 204 });
+        }
+
+        throw new Error(`Unhandled fetch ${method} ${url}`);
+      }),
+    );
+
+    setServerConfigSnapshot(createBaseServerConfig());
+
+    mounted = await render(
+      <AppAtomRegistryProvider>
+        <GeneralSettingsPanel />
+      </AppAtomRegistryProvider>,
+    );
+
+    await expect.element(page.getByText("Push notifications")).toBeInTheDocument();
+    await page.getByLabelText("Enable push notifications").click();
+    await expect
+      .element(page.getByText("Notifications are enabled for this device."))
+      .toBeInTheDocument();
+    expect(subscribe).toHaveBeenCalled();
   });
 });

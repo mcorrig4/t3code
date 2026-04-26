@@ -78,6 +78,7 @@ export interface CodexSessionRuntimeOptions {
   readonly threadId: ThreadId;
   readonly binaryPath: string;
   readonly homePath?: string;
+  readonly configOverrides?: ReadonlyArray<string>;
   readonly cwd: string;
   readonly runtimeMode: RuntimeMode;
   readonly model?: string;
@@ -133,6 +134,13 @@ export type CodexSessionRuntimeError =
   | CodexSessionRuntimePendingUserInputNotFoundError
   | CodexSessionRuntimeInvalidUserInputAnswersError
   | CodexSessionRuntimeThreadIdMissingError;
+
+function buildCodexAppServerArgs(configOverrides?: ReadonlyArray<string>): ReadonlyArray<string> {
+  const normalizedOverrides =
+    configOverrides?.map((value) => value.trim()).filter((value) => value.length > 0) ?? [];
+
+  return ["app-server", ...normalizedOverrides.flatMap((value) => ["-c", value])];
+}
 
 export class CodexSessionRuntimePendingApprovalNotFoundError extends Schema.TaggedErrorClass<CodexSessionRuntimePendingApprovalNotFoundError>()(
   "CodexSessionRuntimePendingApprovalNotFoundError",
@@ -682,7 +690,7 @@ export const makeCodexSessionRuntime = (
 
     const child = yield* spawner
       .spawn(
-        ChildProcess.make(options.binaryPath, ["app-server"], {
+        ChildProcess.make(options.binaryPath, buildCodexAppServerArgs(options.configOverrides), {
           cwd: options.cwd,
           ...(options.homePath
             ? { env: { ...process.env, CODEX_HOME: expandHomePath(options.homePath) } }

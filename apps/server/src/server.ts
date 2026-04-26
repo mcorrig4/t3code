@@ -77,6 +77,16 @@ import {
   orchestrationSnapshotRouteLayer,
 } from "./orchestration/http.ts";
 import { NetService } from "@t3tools/shared/Net";
+import { WebPushNotificationReactorLive } from "./notifications/Layers/WebPushNotificationReactor.ts";
+import { WebPushNotificationsLive } from "./notifications/Layers/WebPushNotifications.ts";
+import { WebPushSubscriptionRepositoryLive } from "./notifications/Layers/WebPushSubscriptionRepository.ts";
+import { ForkNotificationIntentResolverLive } from "./fork/notifications/intentResolver.ts";
+import {
+  webPushConfigRouteLayer,
+  webPushSubscribeRouteLayer,
+  webPushSubscriptionGetMethodNotAllowedRouteLayer,
+  webPushUnsubscribeRouteLayer,
+} from "./fork/http/webPushRoutes.ts";
 
 const PtyAdapterLive = Layer.unwrap(
   Effect.gen(function* () {
@@ -132,6 +142,7 @@ const ReactorLayerLive = Layer.empty.pipe(
   Layer.provideMerge(ProviderCommandReactorLive),
   Layer.provideMerge(CheckpointReactorLive),
   Layer.provideMerge(ThreadDeletionReactorLive),
+  Layer.provideMerge(WebPushNotificationReactorLive),
   Layer.provideMerge(RuntimeReceiptBusLive),
 );
 
@@ -224,6 +235,12 @@ const ProviderRuntimeLayerLive = ProviderSessionReaperLive.pipe(
   Layer.provideMerge(OrchestrationLayerLive),
 );
 
+const WebPushLayerLive = WebPushNotificationsLive.pipe(
+  Layer.provide(ForkNotificationIntentResolverLive),
+  Layer.provide(WebPushSubscriptionRepositoryLive),
+  Layer.provideMerge(OrchestrationLayerLive),
+);
+
 const RuntimeDependenciesLive = ReactorLayerLive.pipe(
   // Core Services
   Layer.provideMerge(CheckpointingLayerLive),
@@ -239,6 +256,7 @@ const RuntimeDependenciesLive = ReactorLayerLive.pipe(
   Layer.provideMerge(RepositoryIdentityResolverLive),
   Layer.provideMerge(ServerEnvironmentLive),
   Layer.provideMerge(AuthLayerLive),
+  Layer.provideMerge(WebPushLayerLive),
 
   // Misc.
   Layer.provideMerge(AnalyticsServiceLayerLive),
@@ -268,6 +286,10 @@ export const makeRoutesLayer = Layer.mergeAll(
   otlpTracesProxyRouteLayer,
   projectFaviconRouteLayer,
   serverEnvironmentRouteLayer,
+  webPushConfigRouteLayer,
+  webPushSubscribeRouteLayer,
+  webPushSubscriptionGetMethodNotAllowedRouteLayer,
+  webPushUnsubscribeRouteLayer,
   staticAndDevRouteLayer,
   websocketRpcRouteLayer,
 ).pipe(Layer.provide(browserApiCorsLayer));

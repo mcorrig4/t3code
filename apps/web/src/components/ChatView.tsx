@@ -118,6 +118,7 @@ import { useSettings } from "../hooks/useSettings";
 import { resolveAppModelSelection } from "../modelSelection";
 import { isTerminalFocused } from "../lib/terminalFocus";
 import { deriveLogicalProjectKeyFromSettings } from "../logicalProject";
+import { readCodexSessionOverrides } from "../fork/settings";
 import {
   useSavedEnvironmentRegistryStore,
   useSavedEnvironmentRuntimeStore,
@@ -2587,6 +2588,7 @@ export default function ChatView(props: ChatViewProps) {
       }
 
       const turnAttachments = await turnAttachmentsPromise;
+      const codexSessionOverrides = readCodexSessionOverrides();
       const bootstrap =
         isLocalDraftThread || baseBranchForWorktree
           ? {
@@ -2631,6 +2633,7 @@ export default function ChatView(props: ChatViewProps) {
         titleSeed: title,
         runtimeMode,
         interactionMode,
+        ...(codexSessionOverrides !== undefined ? { codexSessionOverrides } : {}),
         ...(bootstrap ? { bootstrap } : {}),
         createdAt: messageCreatedAt,
       });
@@ -2917,6 +2920,7 @@ export default function ChatView(props: ChatViewProps) {
       ]);
 
       try {
+        const codexSessionOverrides = readCodexSessionOverrides();
         await persistThreadSettingsForNextTurn({
           threadId: threadIdForSend,
           createdAt: messageCreatedAt,
@@ -2946,6 +2950,7 @@ export default function ChatView(props: ChatViewProps) {
           titleSeed: activeThread.title,
           runtimeMode,
           interactionMode: nextInteractionMode,
+          ...(codexSessionOverrides !== undefined ? { codexSessionOverrides } : {}),
           ...(nextInteractionMode === "default" && activeProposedPlan
             ? {
                 sourceProposedPlan: {
@@ -3056,6 +3061,7 @@ export default function ChatView(props: ChatViewProps) {
         createdAt,
       })
       .then(() => {
+        const codexSessionOverrides = readCodexSessionOverrides();
         return api.orchestration.dispatchCommand({
           type: "thread.turn.start",
           commandId: newCommandId(),
@@ -3070,6 +3076,7 @@ export default function ChatView(props: ChatViewProps) {
           titleSeed: nextThreadTitle,
           runtimeMode,
           interactionMode: "default",
+          ...(codexSessionOverrides !== undefined ? { codexSessionOverrides } : {}),
           sourceProposedPlan: {
             threadId: activeThread.id,
             planId: activeProposedPlan.id,

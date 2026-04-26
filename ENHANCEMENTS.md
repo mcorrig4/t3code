@@ -35,27 +35,28 @@ For the detailed historical changelog from the initial fork buildout (March 2026
 
 #### Web Push Notifications Sidecar
 
-- Status: active | Added: 2026-03-20 | Updated: 2026-03-25
+- Status: active | Added: 2026-03-20 | Updated: 2026-04-26
 - Upstream impact: medium
 - Why: Browser push notifications for assistant completions, approval requests, and user input requests, with deep-link clicks back to the relevant thread.
-- Seam: `apps/server/src/wsServer.ts` → `apps/server/src/fork/http/`; `apps/server/src/notifications/Layers/WebPushNotifications.ts` → `apps/server/src/fork/notifications/intentResolver.ts`
+- Seam: `apps/server/src/server.ts` route/layer wiring → `apps/server/src/fork/http/webPushRoutes.ts`; `apps/server/src/notifications/Layers/WebPushNotifications.ts` → `apps/server/src/fork/notifications/intentResolver.ts`; `apps/web/src/settings/ForkSettingsSection.tsx` → `apps/web/src/notifications/*`
 - Files:
-  - `apps/server/src/main.ts`, `apps/server/src/serverLayers.ts`, `apps/server/src/wsServer.ts`, `apps/server/src/wsServer.test.ts`
-  - `apps/server/src/persistence/Migrations.ts`, `apps/server/src/persistence/Migrations/016_WebPushSubscriptions.ts`
+  - `apps/server/package.json`, `apps/server/src/cli.ts`, `apps/server/src/config.ts`, `apps/server/src/server.ts`
+  - `apps/server/src/orchestration/Layers/OrchestrationReactor.ts`
+  - `apps/server/src/persistence/Migrations.ts`, `apps/server/src/persistence/Migrations/027_WebPushSubscriptions.ts`
   - `apps/server/src/notifications/http.ts`, `apps/server/src/notifications/http.test.ts`, `apps/server/src/notifications/types.ts`, `apps/server/src/notifications/policy.ts`, `apps/server/src/notifications/policy.test.ts`
-  - `apps/server/src/notifications/Layers/WebPushNotifications.ts`, `apps/server/src/notifications/Layers/WebPushSubscriptionRepository.ts`
-  - `apps/server/src/notifications/Services/WebPushNotifications.ts`, `apps/server/src/notifications/Services/WebPushSubscriptionRepository.ts`
-  - `apps/server/src/fork/http/index.ts`, `apps/server/src/fork/http/brandingRoutes.ts`, `apps/server/src/fork/http/webPushRoutes.ts`
+  - `apps/server/src/notifications/Layers/WebPushNotificationReactor.ts`, `apps/server/src/notifications/Layers/WebPushNotifications.ts`, `apps/server/src/notifications/Layers/WebPushSubscriptionRepository.ts`
+  - `apps/server/src/notifications/Services/WebPushNotificationReactor.ts`, `apps/server/src/notifications/Services/WebPushNotifications.ts`, `apps/server/src/notifications/Services/WebPushSubscriptionRepository.ts`
+  - `apps/server/src/fork/http/webPushRoutes.ts`
   - `apps/server/src/fork/notifications/intentResolver.ts`, `apps/server/src/fork/notifications/intentResolver.test.ts`
-  - `apps/web/src/appSettings.ts`, `apps/web/src/appSettings.test.ts`, `apps/web/src/pwa.ts`, `apps/web/src/pwa.test.ts`
-  - `apps/web/src/routes/__root.tsx`, `apps/web/src/settings/ForkSettingsSection.tsx`
+  - `apps/web/src/routes/__root.tsx`, `apps/web/src/settings/ForkSettingsSection.tsx`, `apps/web/src/components/settings/SettingsPanels.tsx`, `apps/web/src/components/settings/SettingsPanels.browser.tsx`
   - `apps/web/src/notifications/client.ts`, `apps/web/src/notifications/pushSupport.ts`, `apps/web/src/notifications/registerServiceWorker.ts`, `apps/web/src/notifications/types.ts`, `apps/web/src/notifications/usePushNotifications.ts`
   - `apps/web/public/manifest.webmanifest`, `apps/web/public/service-worker.js`, `apps/web/public/sw.js`
 - Upstream replacement trigger: upstream adds first-class web push notification support
-- Verify: `bun run test src/notifications/policy.test.ts src/notifications/http.test.ts src/wsServer.test.ts`; enable notifications in Settings, trigger background completion, confirm notification deep-links to correct thread
-- Rollback: remove server notification sidecar wiring from `serverLayers.ts` and `wsServer.ts`; unset `T3CODE_WEB_PUSH_*` env vars for temporary shutdown
+- Verify: `bun run --cwd apps/server test --run src/notifications/policy.test.ts src/notifications/http.test.ts src/fork/notifications/intentResolver.test.ts`; `bun run --cwd apps/web test:browser --run src/components/settings/SettingsPanels.browser.tsx`; enable notifications in Settings, trigger background completion, confirm notification deep-links to correct thread
+- Rollback: remove web push route/layer wiring from `apps/server/src/server.ts` and `OrchestrationReactor.ts`; unset `T3CODE_WEB_PUSH_*` env vars for temporary shutdown
 - Notes:
   - 2026-03-26: Extracted HTTP sidecar into `apps/server/src/fork/http/*`; added intent resolver allowlist; hardened service-worker shell cache; tightened auth to bearer-only for REST sidecar; moved browser toggle into fork settings store.
+  - 2026-04-26: Rebound the sidecar onto the fresh upstream server layer graph, moved persistence to migration `027_WebPushSubscriptions`, and restored deep-link navigation through the service worker plus `useNotificationNavigation()`.
 
 #### Production Web Push Runtime Configuration
 
@@ -74,20 +75,22 @@ For the detailed historical changelog from the initial fork buildout (March 2026
 
 #### Codex App-Server Notification Suppression Sidecar
 
-- Status: active | Added: 2026-03-24 | Updated: 2026-03-25
+- Status: active | Added: 2026-03-24 | Updated: 2026-04-26
 - Upstream impact: low
 - Why: Users may want to suppress native Codex CLI notifications for T3-launched sessions without mutating `~/.codex/config.toml` or using an alternate `CODEX_HOME`.
-- Seam: `apps/web/src/settings/ForkSettingsSection.tsx`, `apps/web/src/fork/settings/`
+- Seam: `apps/web/src/components/settings/SettingsPanels.tsx`, `apps/web/src/settings/ForkSettingsSection.tsx`, `apps/web/src/fork/settings/`
 - Files:
-  - `apps/server/src/codexAppServerManager.ts`, `apps/server/src/provider/codexAppServerOverrides.ts`, `apps/server/src/codexAppServerManager.test.ts`
-  - `apps/web/src/appSettings.ts`, `apps/web/src/appSettings.test.ts`, `apps/web/src/components/ChatView.tsx`
-  - `apps/web/src/settings/ForkSettingsSection.tsx`, `apps/web/src/fork/settings/schema.ts`, `apps/web/src/fork/settings/resetPlan.ts`
-  - `packages/contracts/src/orchestration.ts`, `packages/contracts/src/provider.test.ts`
+  - `apps/server/src/orchestration/Layers/ProviderCommandReactor.ts`, `apps/server/src/provider/Layers/CodexAdapter.ts`, `apps/server/src/provider/Layers/CodexSessionRuntime.ts`
+  - `apps/server/src/fork/provider/codexAppServerOverrides.ts`, `apps/server/src/provider/Layers/CodexAdapter.test.ts`, `apps/server/src/orchestration/Layers/ProviderCommandReactor.test.ts`
+  - `apps/web/src/components/ChatView.tsx`, `apps/web/src/components/settings/SettingsPanels.tsx`, `apps/web/src/components/settings/SettingsPanels.browser.tsx`
+  - `apps/web/src/settings/ForkSettingsSection.tsx`, `apps/web/src/settings/ForkSettingsSection.browser.tsx`, `apps/web/src/settings/resetPlan.ts`, `apps/web/src/fork/settings/*`
+  - `packages/contracts/src/orchestration.ts`, `packages/contracts/src/provider.ts`, `packages/contracts/src/provider.test.ts`
 - Upstream replacement trigger: upstream adds session-scoped notification suppression
 - Verify: enable setting in T3, start fresh Codex chat, confirm launch includes `-c notify=[]`; run standalone `codex` and confirm global notify unchanged
 - Rollback: remove `configOverrides` transport field and the T3 settings toggle
 - Notes:
   - 2026-03-26: Moved persisted flag into fork settings store; added `useForkSettingsResetPlan` composition and `apps/web/src/settings/resetPlan.ts` so settings route owns only route-local UI cleanup.
+  - 2026-04-26: Rebound the settings UI into upstream `GeneralSettingsPanel` and moved the server startup seam from the legacy app-server manager onto `ProviderCommandReactor -> CodexAdapter -> CodexSessionRuntime`.
 
 ---
 
