@@ -4,12 +4,23 @@ import babel from "@rolldown/plugin-babel";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import { defineConfig } from "vite";
 import pkg from "./package.json" with { type: "json" };
+import { t3ForkBrandingVitePlugin } from "./src/fork/brandingVitePlugin";
 
 const port = Number(process.env.PORT ?? 5733);
 const host = process.env.HOST?.trim() || "localhost";
 const configuredHttpUrl = process.env.VITE_HTTP_URL?.trim();
 const configuredWsUrl = process.env.VITE_WS_URL?.trim();
 const sourcemapEnv = process.env.T3CODE_WEB_SOURCEMAP?.trim().toLowerCase();
+const allowedHosts = Array.from(
+  new Set([
+    "t3-dev.claude.do",
+    "localhost",
+    "127.0.0.1",
+    ...(process.env.T3CODE_ALLOWED_HOSTS?.split(",")
+      .map((configuredHost) => configuredHost.trim())
+      .filter(Boolean) ?? []),
+  ]),
+);
 
 const buildSourcemap =
   sourcemapEnv === "0" || sourcemapEnv === "false"
@@ -43,6 +54,7 @@ const devProxyTarget = resolveDevProxyTarget(configuredWsUrl);
 
 export default defineConfig({
   plugins: [
+    t3ForkBrandingVitePlugin(),
     tanstackRouter(),
     react(),
     babel({
@@ -56,7 +68,12 @@ export default defineConfig({
     tailwindcss(),
   ],
   optimizeDeps: {
-    include: ["@pierre/diffs", "@pierre/diffs/react", "@pierre/diffs/worker/worker.js"],
+    include: [
+      "@pierre/diffs",
+      "@pierre/diffs/react",
+      "@pierre/diffs/worker/worker.js",
+      "react-dom/client",
+    ],
   },
   define: {
     "import.meta.env.VITE_HTTP_URL": JSON.stringify(configuredHttpUrl ?? ""),
@@ -71,6 +88,7 @@ export default defineConfig({
     host,
     port,
     strictPort: true,
+    allowedHosts,
     ...(devProxyTarget
       ? {
           proxy: {

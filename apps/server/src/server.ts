@@ -238,7 +238,7 @@ const ProviderRuntimeLayerLive = ProviderSessionReaperLive.pipe(
 const WebPushLayerLive = WebPushNotificationsLive.pipe(
   Layer.provide(ForkNotificationIntentResolverLive),
   Layer.provide(WebPushSubscriptionRepositoryLive),
-  Layer.provideMerge(OrchestrationLayerLive),
+  Layer.provideMerge(PersistenceLayerLive),
 );
 
 const RuntimeDependenciesLive = ReactorLayerLive.pipe(

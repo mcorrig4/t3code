@@ -69,7 +69,6 @@ function decodeStoredSubscription(
 
 const makeWebPushNotifications = Effect.gen(function* () {
   const serverConfig = yield* ServerConfig;
-  const projectionSnapshotQuery = yield* ProjectionSnapshotQuery;
   const repository = yield* WebPushSubscriptionRepository;
   const notificationIntentResolver: ForkNotificationIntentResolverShape =
     yield* ForkNotificationIntentResolver;
@@ -185,6 +184,7 @@ const makeWebPushNotifications = Effect.gen(function* () {
         return;
       }
 
+      const projectionSnapshotQuery = yield* ProjectionSnapshotQuery;
       const snapshot = yield* projectionSnapshotQuery
         .getSnapshot()
         .pipe(Effect.catch(() => Effect.succeed(null)));

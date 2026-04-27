@@ -11,6 +11,24 @@ Use it to:
 - capture issues discovered during each phase
 - save automated verification commands and scripts so future upstream syncs are repeatable
 
+## Recommended Local Smoke Target
+
+Prefer the integrated local runtime over a standalone Vite dev server for sync acceptance.
+
+The recommended path is:
+
+1. build `apps/web/dist`
+2. run the sync-branch server in headless mode so it serves the built app directly
+3. point browser smoke runs at that same-origin local server
+4. auto-pair a loopback browser session before any authenticated page checks
+
+Why this is the default:
+
+- it exercises the shipped integration path instead of a dev-only approximation
+- UI, API, auth cookies, service worker, and fork sidecars all share one origin
+- it avoids false failures from Vite/HMR drift, cross-worktree dev servers, and preview CORS mismatches
+- it catches real runtime regressions such as server boot/layer-order bugs
+
 ## Core Sync Rule
 
 Treat `upstream/main` as the authoritative source snapshot.
@@ -91,9 +109,11 @@ The phase wrappers exist for continuity; the capsule seams are the long-term tar
 - Script:
   - [sync-phase-2-mobile-pwa.mjs](/home/claude/code/t3code/apps/web/e2e/sync-phase-2-mobile-pwa.mjs)
 - Notes:
-  - the Playwright phase smoke now prefers the branded `baseUrl` for manifest checks and uses shared smoke helpers under `apps/web/e2e/shared`
-  - Phase 2 automation currently verifies PWA shell metadata, root-scoped service worker registration, and the standalone PWA helper logic
+  - the Playwright phase smoke now runs as deterministic local/either coverage and uses shared smoke helpers under `apps/web/e2e/shared`
+- Phase 2 automation currently verifies PWA shell metadata, root-scoped service worker registration, and the standalone PWA helper logic
+- local phase automation now assumes an integrated same-origin runtime and bootstraps loopback auth automatically when `T3_SYNC_LOCAL_WEB_URL` points at `127.0.0.1`/`localhost`
   - mobile composer focus-zoom behavior still needs manual validation in the authenticated dev app until we build a more reliable browser/component harness for this sync flow
+  - hosted dev-host manifest checks are currently manual because Cloudflare Access redirects unauthenticated fetches in this harness
 
 ### Phase 3: Chat UX and runtime branding details
 
@@ -141,7 +161,8 @@ The phase wrappers exist for continuity; the capsule seams are the long-term tar
   - stale pending approval/user-input cleanup is not being carried forward in this rebuild
   - focus this phase on optional fork-only debugging surfaces such as the user-input debug panel and any truly necessary runtime overrides
   - prefer sidecar seams over broad runtime divergence
-  - the current phase smoke validates the Settings diagnostics opener, debug query param compatibility, sidecar mount, and global error/rejection breadcrumb capture on the local dev web endpoint
+- the current phase smoke validates the Settings diagnostics opener, debug query param compatibility, sidecar mount, and global error/rejection breadcrumb capture on the local dev web endpoint
+- prefer the integrated helper when running this phase locally so diagnostics and auth flow are exercised on the same runtime the server ships
   - the current root-sidecar seam is `apps/web/src/fork/bootstrap/ForkRootSidecars.tsx`, which keeps `__root.tsx` to one fork mount point plus route behavior
 
 ### Phase 7: Web push notifications
@@ -154,7 +175,8 @@ The phase wrappers exist for continuity; the capsule seams are the long-term tar
   - [sync-phase-7-web-push.mjs](/home/claude/code/t3code/apps/web/e2e/sync-phase-7-web-push.mjs)
 - Notes:
   - keep this separate from the runtime/debug phase because it is its own full-stack sidecar spanning settings, service worker, client registration, server layers, persistence, and runtime config
-  - the current phase smoke validates the fork settings-sidecar mount, the notifications status card, `/api/web-push/config`, rejection of visible JSON/HTML parse failures, and safe disabled-server behavior on the local dev web endpoint
+- the current phase smoke validates the fork settings-sidecar mount, the notifications status card, `/api/web-push/config`, rejection of visible JSON/HTML parse failures, and safe disabled-server behavior on the local dev web endpoint
+- prefer the integrated helper when running this phase locally so `/api/web-push/config` is verified on a same-origin authenticated runtime
 
 ### Phase 8: Final audit and promotion readiness
 
@@ -183,10 +205,12 @@ The phase wrappers exist for continuity; the capsule seams are the long-term tar
 - Keep the existing phase scripts as thin wrappers over shared helpers and capsule-aware smoke metadata rather than letting each script grow bespoke bootstrapping code again.
 - Each script should check only the behaviors touched by that phase, plus one or two nearby sanity checks.
 - Keep the scripts runnable against the dev host with a simple command.
+- For deterministic local acceptance, prefer the integrated helper over a long-lived Vite dev server.
 - Use a delegated agent/sub-agent to run the browser verification and summarize only the important findings in the main thread.
 - Prefer the layered smoke entrypoints for routine operation:
-  - `sync:smoke:quick` for deterministic local/either coverage
-  - `sync:smoke:hosted` for checks that need the hosted dev surface
+  - `sync:smoke:integrated` for deterministic local integrated coverage
+  - `sync:smoke:quick` for the same smoke layer when you are explicitly providing a prepared local target
+  - `sync:smoke:hosted` for baseline hosted reachability against `t3-dev.claude.do`
   - `sync:smoke:all` when you want the full gate
 
 ## Standard Commands
@@ -196,11 +220,13 @@ The phase wrappers exist for continuity; the capsule seams are the long-term tar
 - Run existing component browser tests:
   - `bun run --cwd apps/web test:browser`
 - Run fork browser coverage:
-  - `bun run --cwd apps/web test:browser --run src/settings/ForkSettingsSection.browser.tsx src/components/settings/SettingsPanels.browser.tsx`
+  - `bun run --cwd apps/web test:browser:fork`
 - Run the current phase baseline smoke:
   - `bun run sync:phase0:smoke`
 - Run the deterministic smoke layer:
   - `bun run --cwd apps/web sync:smoke:quick`
+- Run the preferred integrated local gate:
+  - `bun run sync:smoke:integrated`
 - Run the hosted smoke layer:
   - `bun run --cwd apps/web sync:smoke:hosted`
 - Run the full smoke gate:

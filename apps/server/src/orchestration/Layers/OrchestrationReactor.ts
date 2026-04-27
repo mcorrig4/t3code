@@ -15,9 +15,9 @@ export const makeOrchestrationReactor = Effect.gen(function* () {
   const providerCommandReactor = yield* ProviderCommandReactor;
   const checkpointReactor = yield* CheckpointReactor;
   const threadDeletionReactor = yield* ThreadDeletionReactor;
-  const webPushNotificationReactor = yield* WebPushNotificationReactor;
 
   const start: OrchestrationReactorShape["start"] = Effect.fn("start")(function* () {
+    const webPushNotificationReactor = yield* WebPushNotificationReactor;
     yield* providerRuntimeIngestion.start();
     yield* providerCommandReactor.start();
     yield* checkpointReactor.start();

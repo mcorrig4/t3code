@@ -439,8 +439,9 @@ describe("GeneralSettingsPanel observability", () => {
     );
 
     await expect.element(page.getByText("About")).toBeInTheDocument();
-    await expect.element(page.getByText("Diagnostics")).toBeInTheDocument();
-    await expect.element(page.getByText("Open logs folder")).toBeInTheDocument();
+    await expect
+      .element(page.getByRole("button", { name: "Open logs folder" }))
+      .toBeInTheDocument();
     await expect
       .element(page.getByText("/repo/project/.t3/logs", { exact: true }))
       .toBeInTheDocument();
@@ -817,10 +818,11 @@ describe("GeneralSettingsPanel observability", () => {
     );
 
     await expect.element(page.getByText("Push notifications")).toBeInTheDocument();
+    await expect.element(page.getByLabelText("Enable push notifications")).toBeEnabled();
     await page.getByLabelText("Enable push notifications").click();
-    await expect
-      .element(page.getByText("Notifications are enabled for this device."))
-      .toBeInTheDocument();
-    expect(subscribe).toHaveBeenCalled();
+    await vi.waitFor(() => {
+      expect(subscribe).toHaveBeenCalled();
+    });
+    await expect.element(page.getByLabelText("Disable push notifications")).toBeEnabled();
   });
 });

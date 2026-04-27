@@ -123,8 +123,9 @@ bun lint
 bun typecheck
 
 # Smoke layers
-bun run --cwd apps/web sync:smoke:quick     # deterministic: acceptance check + browser spec + local smoke
-bun run --cwd apps/web sync:smoke:hosted    # hosted: depends on t3-dev.claude.do
+bun run sync:smoke:integrated               # preferred: build + headless server + same-origin local smoke
+bun run --cwd apps/web sync:smoke:quick     # deterministic layer for a prepared local target
+bun run --cwd apps/web sync:smoke:hosted    # hosted baseline: reachability on t3-dev.claude.do
 bun run --cwd apps/web sync:smoke:all       # both: quick then hosted
 
 # Per-capsule smoke (run the one matching your change)
@@ -139,7 +140,7 @@ bun run --cwd apps/web sync:phase9:smoke    # settings sidecar
 bun run --cwd apps/web sync:acceptance:check
 
 # Fork browser specs
-bun run --cwd apps/web test:browser --run src/settings/ForkSettingsSection.browser.tsx src/components/settings/SettingsPanels.browser.tsx
+bun run --cwd apps/web test:browser:fork
 ```
 
 Full verification matrix: [docs/fork-acceptance-matrix.md](/home/claude/code/t3code/docs/fork-acceptance-matrix.md)

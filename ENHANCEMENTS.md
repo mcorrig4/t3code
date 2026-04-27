@@ -317,17 +317,22 @@ For the detailed historical changelog from the initial fork buildout (March 2026
 
 #### Fork Capsule Sync Infrastructure
 
-- Status: active | Added: 2026-03-26 | Updated: 2026-03-26
+- Status: active | Added: 2026-03-26 | Updated: 2026-04-26
 - Upstream impact: none
 - Why: Fork tracks retained behavior by capsule so future syncs can rebind seams and rerun capsule smoke instead of rediscovering behavior from scratch.
 - Seam: `apps/web/package.json` scripts; `UPSTREAM_SYNC_MIGRATION_LOG.md`
 - Files:
   - `docs/fork-architecture.md`, `docs/fork-acceptance-matrix.md`
+  - `apps/web/package.json`, `package.json`, `scripts/sync-phase-1-guardrails.mjs`
   - `apps/web/src/fork/testing/forkSmokeManifest.ts`, `apps/web/e2e/check-fork-acceptance-matrix.ts`
-  - `UPSTREAM_SYNC_MIGRATION_LOG.md`
+  - `apps/web/e2e/shared/assertions.mjs`, `apps/web/e2e/shared/browser.mjs`, `apps/web/e2e/shared/smokeRunner.mjs`, `apps/web/e2e/shared/urls.mjs`
+  - `apps/web/e2e/sync-phase-0-baseline.mjs`, `apps/web/e2e/sync-phase-2-mobile-pwa.mjs`, `apps/web/e2e/sync-phase-4-settings.mjs`, `apps/web/e2e/sync-phase-6-debug-sidecar.mjs`, `apps/web/e2e/sync-phase-7-web-push.mjs`, `apps/web/e2e/sync-phase-9-settings-sidecar.mjs`
+  - `UPSTREAM_SYNC_MIGRATION_LOG.md`, `.agents/skills/t3code/SKILL.md`
 - Upstream replacement trigger: upstream adds capsule-style modular verification
 - Verify: `bun run --cwd apps/web sync:acceptance:check`; `bun run --cwd apps/web sync:smoke:all`
 - Rollback: remove capsule docs, manifest, and acceptance check; restore direct phase-script ownership
+- Notes:
+  - 2026-04-26: Rebound the missing phase smoke wrappers onto the fresh upstream branch and updated the hosted/local scripts to match the new settings, diagnostics, and web-push seams.
 
 ---
 

@@ -48,7 +48,7 @@ Long term maintainability is a core priority. If you add new functionality, firs
   - start from the exact new `upstream/main` snapshot
   - treat that snapshot as the new base
   - reapply and adapt our fork-specific behavior on top of it feature-by-feature
-  - verify each retained fork feature against the new upstream architecture before merging it back into `main`
+  - verify each retained fork feature against the new upstream architecture before merging it into `dev`
 - During upstream sync work, branches and old commit hashes are evidence only. The unit of decision-making is the individual feature, bug fix, customization, or operational deviation.
 - Avoid commit-cherry-picking as the default sync strategy. Prefer manual reapplication, targeted patch extraction, or small feature branches built from the fresh upstream snapshot so our retained changes match the new upstream structure cleanly.
 - For fork-only settings UI, prefer a single injected sidecar section/component over scattering fork controls throughout the upstream settings page.
@@ -74,7 +74,7 @@ Long term maintainability is a core priority. If you add new functionality, firs
 
 - Default all GitHub collaboration actions to the user's fork: `mcorrig4/t3code`.
 - When the user says "open a PR", "create a PR", "open an issue", "create an issue", or similar without naming a repo, interpret that as an action within `mcorrig4/t3code`.
-- For pull requests, the default target is `mcorrig4/t3code` with the current branch merging into `main` on `mcorrig4/t3code`, unless the user explicitly asks for a different base branch.
+- For pull requests, the default target is `mcorrig4/t3code` with the current branch merging into `dev` on `mcorrig4/t3code`, unless the user explicitly asks for a different base branch.
 - Treat `pingdotgg/t3code` as strictly upstream-only. Never open PRs, issues, discussions, or other GitHub artifacts there from this environment. If the user wants something opened against `pingdotgg/t3code`, explain that this is not allowed here and they should open it themselves in the GitHub website.
 - If a request could affect a remote repository and the target is ambiguous, pause only long enough to confirm the owner/repo before publishing.
 

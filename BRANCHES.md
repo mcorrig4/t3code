@@ -2,8 +2,11 @@
 
 ## Protected Branches
 
+- `dev`
+  - Primary integration branch for the fork and release-candidate staging branch for `t3-dev.claude.do`.
+  - Do not delete casually.
 - `main`
-  - Primary integration branch for the fork.
+  - Protected release branch for approved builds moving toward production.
   - Do not delete casually.
 - `production`
   - Protected deployment branch for `t3.claude.do`.
@@ -14,11 +17,11 @@
 ## Working Branches
 
 - `feature/*`
-  - Short-lived feature branches from `main`.
+  - Short-lived feature branches from `dev`.
 - `fix/*`
-  - Short-lived bug-fix branches from `main`.
+  - Short-lived bug-fix branches from `dev`.
 - `sync/upstream-YYYYMMDD`
-  - Temporary upstream sync branches used to merge `upstream/main` into `main`.
+  - Temporary upstream sync branches used to reapply fork behavior onto fresh `upstream/main` before merging into `dev`.
 - `promote/*`
   - Historical promotion branches. Review carefully before deletion because they may capture deployed snapshots.
 - `wip/*`
