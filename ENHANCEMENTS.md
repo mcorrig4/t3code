@@ -205,6 +205,19 @@ For the detailed historical changelog from the initial fork buildout (March 2026
 - Verify: open sidebar on mobile — caps at 93vw with visible click-outside space
 - Rollback: revert mobile `max-width: 93vw` override in `overrides.css`
 
+#### Sidebar Project Row Theming And Mobile Controls
+
+- Status: active | Added: 2026-03-23 | Updated: 2026-04-26
+- Upstream impact: low
+- Why: Project rows in the sidebar should feel more intentionally themed and touch-friendly, with clearer project grouping, visible project actions, and less cramped spacing than upstream.
+- Seam: `apps/web/src/overrides.css`; `apps/web/src/components/Sidebar.tsx` (`data-project-*` hooks)
+- Files: `apps/web/src/components/Sidebar.tsx`, `apps/web/src/overrides.css`
+- Upstream replacement trigger: upstream adds first-class project-row visual treatment and touch-accessible project actions
+- Verify: sidebar project rows render with bordered/gradient card styling in light and dark themes; project list spacing and heading spacing are visibly adjusted; project action button remains reachable on touch devices
+- Rollback: remove the `data-project-*` hooks from `Sidebar.tsx`; remove the related project-row, project-list, and project-action rules from `overrides.css`
+- Notes:
+  - 2026-04-26: This includes the project-row card treatment, project-heading/list spacing, project-header alignment, and touch-visible project action affordance.
+
 #### Project Thread Spacing Polish
 
 - Status: active | Added: 2026-03-23 | Updated: 2026-03-23
@@ -215,6 +228,17 @@ For the detailed historical changelog from the initial fork buildout (March 2026
 - Upstream replacement trigger: upstream adjusts project-tree spacing
 - Verify: expand a project with multiple chats — first child thread has slightly more top space
 - Rollback: remove first-child margin override under `[data-project-threads]` in `overrides.css`
+
+#### Awaiting-Input Sidebar Status Emphasis
+
+- Status: active | Added: 2026-03-20 | Updated: 2026-04-26
+- Upstream impact: low
+- Why: Threads blocked on user input should read as more urgent than the upstream neutral treatment so pending responses are easier to spot in the sidebar.
+- Seam: `apps/web/src/components/Sidebar.logic.ts` (`resolveThreadStatusPill`)
+- Files: `apps/web/src/components/Sidebar.logic.ts`, `apps/web/src/components/Sidebar.logic.test.ts`
+- Upstream replacement trigger: upstream adds a stronger first-class visual treatment for pending user-input thread status
+- Verify: create a thread awaiting structured user input — sidebar pill reads "Awaiting Input" with red text/dot styling; pending approvals remain amber
+- Rollback: revert the awaiting-input `colorClass` and `dotClass` in `resolveThreadStatusPill`
 
 #### Native Assistant Message TTS
 
@@ -261,6 +285,17 @@ For the detailed historical changelog from the initial fork buildout (March 2026
 - Upstream replacement trigger: upstream makes action buttons touch-accessible
 - Verify: on mobile/touch, copy and revert buttons visible without hovering; on desktop, still hover-only
 - Rollback: remove `max-sm:opacity-100` from `MessagesTimeline.tsx`; remove `@media (hover: none)` block for `.chat-markdown-copy-button` in `overrides.css`
+
+#### Sidebar Rename/Input Zoom Guard And Footer Touch Polish
+
+- Status: active | Added: 2026-03-24 | Updated: 2026-04-26
+- Upstream impact: low
+- Why: iOS touch interactions in the sidebar needed extra polish so rename inputs do not trigger Safari zoom and the standalone/mobile sidebar footer controls feel intentional instead of cramped.
+- Seam: `apps/web/src/overrides.css`; `apps/web/src/components/Sidebar.tsx`; `apps/web/src/components/ui/sidebar.tsx`
+- Files: `apps/web/src/components/Sidebar.tsx`, `apps/web/src/components/ui/sidebar.tsx`, `apps/web/src/overrides.css`
+- Upstream replacement trigger: upstream adds iPhone-safe rename input sizing and stronger mobile/standalone footer control styling
+- Verify: on iPhone/touch, renaming a thread in the sidebar does not trigger browser zoom; in standalone/mobile sessions, the sidebar footer button is centered and visually framed
+- Rollback: remove `data-slot="thread-rename-input"` from `Sidebar.tsx`; remove the rename-input and sidebar-footer override rules from `overrides.css`
 
 #### Thread Sidebar Overflow Sidecar
 
